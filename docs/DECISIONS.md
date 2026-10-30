@@ -5,6 +5,10 @@ Accounting decisions are also recorded in the Airtable Judgment Log.
 
 | Date | Decision | Decided by |
 |---|---|---|
+| 2026-10-30 | Fixed assets, prepaid/deferred spreads and loans live in **Supabase** (not Airtable) so each record is saved in the same transaction as its entry and drops out automatically when that entry is reversed or cancelled. | Build |
+| 2026-10-30 | Loan installments are split from a schedule: lender loans solve the rate from the fixed installment; informal loans use the agreed rate (0% if none). One Loans Payable account per loan. | Build |
+| 2026-10-30 | Approved entries are never edited. Corrections reverse the original and re-enter it (approved together). Asset, prepaid and loan entries are reversed and entered again rather than corrected in place. | Build |
+| 2026-10-30 | Only Owners classify For Classification movements and enter opening balances; the other Owner approves. | Build |
 | 2026-10-29 | Logins use **Supabase Auth** (master prompt allowed Clerk or Supabase). | Nina |
 | 2026-10-29 | Airtable base lives in the **CLD Ventures** workspace. | Nina |
 | 2026-10-29 | Chart of Accounts source is the Oct 29 workbook (`docs/source/chart-of-accounts.xlsx`), which supersedes the Section 5 list where they differ (e.g. GoTyme 1170 reactivated, per-loan interest accounts 7510–7530). | Nina |
@@ -30,7 +34,8 @@ Accounting decisions are also recorded in the Airtable Judgment Log.
 | Store | Holds | Why |
 |---|---|---|
 | Supabase Postgres | Users and roles, Periods (month locks), Entries, Entry Lines, Account Period Balances, Audit Log | Posting an entry (header, lines, balances, audit row) must succeed or fail as one transaction, and the database can enforce "debits equal credits" itself. Free tier comfortably holds years of lines. |
-| Airtable (one base per fiscal year) | Chart of Accounts, Parties, Transaction Types and Template Lines, schedules (loans, assets, spreads), inventory counts, bank reconciliations, Judgment Log | Easy for Nina and Kai to view and edit; low record counts. |
+| Supabase Postgres (registers) | Fixed assets, prepaid/deferred spreads, loans and installments | Saved with their entry in one transaction. |
+| Airtable (one base per fiscal year) | Chart of Accounts, Parties, Commissary Products, Transaction Types and Template Lines, inventory counts, bank reconciliations, Judgment Log | Easy for Nina and Kai to view and edit; low record counts. |
 | Supabase Auth | Logins | One login per person; role and access in `app_users`. |
 
 Header and line records for the same entry are never split across the two stores.

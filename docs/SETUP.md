@@ -67,6 +67,18 @@ so password-reset emails link back to the app.
    (Store/Commissary), **Profit Center** (GGC or The Nest) and tick **Active**. Untick Active
    when someone leaves; they disappear from the app within a minute.
 
+## 7. Phase 2 additions
+
+1. Supabase → **SQL Editor** → paste all of `supabase/migrations/0003_registers.sql` → **Run**.
+   It adds the registers (fixed assets, prepaid/deferred spreads, loans). Run it **before**
+   the Phase 2 code is deployed.
+2. Airtable → **Commissary Products**: one row per product the Commissary bills (name, unit,
+   COGS account such as 5130, Active).
+3. Airtable → **Parties**: add **Kai** and **Nina** with **Type = Owner**, and each lender
+   (e.g. Union Bank) with **Type = Lender**.
+4. In the app, after go-live: Home → **Opening balances (#43)** for each book, then
+   **Registers → Add go-live record** for each asset, prepaid and loan that exists on Oct 31.
+
 ## Moving to a custom domain later
 
 Add the domain in the Worker → **Settings → Domains & Routes**, then update the Supabase

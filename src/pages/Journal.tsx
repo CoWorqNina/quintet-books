@@ -1,4 +1,4 @@
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import type { AppUser, JournalEntry } from "../../shared/types";
 import { EntryCard } from "../components/EntryCard";
 import { api } from "../lib/api";
@@ -35,6 +35,19 @@ export default function Journal({ user }: { user: AppUser }) {
     }
   }
 
+  async function reverse(e: JournalEntry) {
+    const reason = prompt(`Reverse entry #${e.id}? The reversal goes to an Owner for approval.\n\nReason:`);
+    if (!reason?.trim()) return;
+    try {
+      await api(`/entries/${e.id}/reverse`, { method: "POST", body: JSON.stringify({ reason }) });
+      reload();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Could not reverse");
+    }
+  }
+
+  const canReverse = (e: JournalEntry) => (user.role === "Owner" || user.role === "Accountant") && e.status === "Approved" && !e.reversedBy;
+
   // The server checks who may cancel; Staff only ever see their own entries.
   const canCancel = (e: JournalEntry) =>
     !e.dailyReportId && ["Draft", "Submitted", "Rejected"].includes(e.status) && user.role !== "Commissary In-charge";
@@ -61,11 +74,22 @@ export default function Journal({ user }: { user: AppUser }) {
           key={e.id}
           entry={e}
           actions={
-            canCancel(e) ? (
-              <button className="link danger" onClick={() => cancel(e)}>
-                Cancel
-              </button>
-            ) : undefined
+            <>
+              {e.reversesEntryId && <span className="muted">Reverses #{e.reversesEntryId}</span>}
+              {e.classifiesEntryId && <span className="muted">Classifies #{e.classifiesEntryId}</span>}
+              {e.reversedBy && <span className="badge muted-badge">Reversed by #{e.reversedBy}</span>}
+              {canReverse(e) && e.correctable && <Link to={`/entries/${e.id}/correct`}>Correct</Link>}
+              {canReverse(e) && (
+                <button className="link" onClick={() => reverse(e)}>
+                  Reverse
+                </button>
+              )}
+              {canCancel(e) && (
+                <button className="link danger" onClick={() => cancel(e)}>
+                  Cancel
+                </button>
+              )}
+            </>
           }
         />
       ))}

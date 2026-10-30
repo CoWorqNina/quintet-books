@@ -1,29 +1,48 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { GO_LIVE_DATE } from "../../shared/config";
 import { type LoanInfo, type Product, type TemplateContext, templatesFor, type Values } from "../../shared/templates";
-import type { AppUser, Book } from "../../shared/types";
+import type { AppUser, Book, JournalEntry } from "../../shared/types";
 import { EntryPreview } from "../components/EntryPreview";
 import { TemplateForm } from "../components/TemplateForm";
 import { api } from "../lib/api";
 import { todayManila, useAccounts, useLoad, useParties } from "../lib/data";
 
-export default function NewEntry({ user }: { user: AppUser }) {
+interface SavedForm {
+  template: number;
+  book: Book;
+  profitCenter: "GGC" | "The Nest";
+  values: Values;
+}
+
+/** Correcting an approved entry: loads the form it was built from, then reverses and re-enters it. */
+export function CorrectEntry({ user }: { user: AppUser }) {
+  const { id } = useParams();
+  const { data, error } = useLoad<{ entry: JournalEntry; form: SavedForm | null }>(`/entries/${id}`);
+  if (error) return <p className="error">{error}</p>;
+  if (!data) return <p className="muted">Loading…</p>;
+  if (!data.form || !data.entry.correctable) return <p>Entry #{id} can't be corrected here. Reverse it from the journal and enter it again.</p>;
+  return <NewEntry user={user} correcting={{ entry: data.entry, form: data.form }} />;
+}
+
+export default function NewEntry({ user, correcting }: { user: AppUser; correcting?: { entry: JournalEntry; form: SavedForm } }) {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const templates = templatesFor(user.role, user.books);
   const pcs = user.profitCenters.filter((p): p is "GGC" | "The Nest" => p === "GGC" || p === "The Nest");
-  const [number, setNumber] = useState(Number(params.get("template")) || templates[0]?.number || 0);
+  const saved = correcting?.form;
+  const [number, setNumber] = useState(saved?.template ?? (Number(params.get("template")) || templates[0]?.number || 0));
   const template = templates.find((t) => t.number === number);
   const books = (template?.books ?? []).filter((b) => user.books.includes(b));
-  const [book, setBook] = useState<Book>(books[0] ?? "Store");
-  const [profitCenter, setProfitCenter] = useState<"GGC" | "The Nest">(pcs[0] ?? "GGC");
-  const [values, setValues] = useState<Values>({ date: todayManila() });
+  const [book, setBook] = useState<Book>(saved?.book ?? books[0] ?? "Store");
+  const [profitCenter, setProfitCenter] = useState<"GGC" | "The Nest">(saved?.profitCenter ?? pcs[0] ?? "GGC");
+  const [values, setValues] = useState<Values>(saved?.values ?? { date: todayManila() });
+  const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (template && !template.books.includes(book)) setBook(books[0] ?? "Store");
+    if (template && !template.books.includes(book) && !saved) setBook(books[0] ?? "Store");
   }, [number]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const accountList = useAccounts();
@@ -55,7 +74,11 @@ export default function NewEntry({ user }: { user: AppUser }) {
     setBusy(true);
     setServerError(null);
     try {
-      await api("/entries", { method: "POST", body: JSON.stringify({ template: number, book: ctx.book, profitCenter, values }) });
+      if (correcting) {
+        await api(`/entries/${correcting.entry.id}/reverse`, { method: "POST", body: JSON.stringify({ reason, values }) });
+      } else {
+        await api("/entries", { method: "POST", body: JSON.stringify({ template: number, book: ctx.book, profitCenter, values }) });
+      }
       navigate("/journal");
     } catch (e) {
       setServerError(e instanceof Error ? e.message : "Could not save");
@@ -65,11 +88,24 @@ export default function NewEntry({ user }: { user: AppUser }) {
 
   return (
     <section className="form-page">
-      <h1>New entry</h1>
+      <h1>{correcting ? `Correct entry #${correcting.entry.id}` : "New entry"}</h1>
+      {correcting && (
+        <div className="card">
+          <p>
+            Saving reverses entry #{correcting.entry.id} ({correcting.entry.templateName}, {correcting.entry.entryDate}) and records the
+            corrected one below. Both go to an Owner for approval together.
+          </p>
+          <label>
+            Reason for the correction
+            <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Wrong supplier, amount was ₱1,250" />
+          </label>
+        </div>
+      )}
       <div className="card grid2">
         <label>
           Transaction type
           <select
+            disabled={!!correcting}
             value={number}
             onChange={(e) => {
               setNumber(Number(e.target.value));
@@ -92,7 +128,7 @@ export default function NewEntry({ user }: { user: AppUser }) {
         {!template.twoBook && books.length > 1 && (
           <label>
             Book
-            <select value={book} onChange={(e) => setBook(e.target.value as Book)}>
+            <select value={book} onChange={(e) => setBook(e.target.value as Book)} disabled={!!correcting}>
               {books.map((b) => (
                 <option key={b}>{b}</option>
               ))}
@@ -102,7 +138,7 @@ export default function NewEntry({ user }: { user: AppUser }) {
         {ctx.book === "Store" && (!template.twoBook || template.fields.some((f) => f.filter === "payFrom")) && (
           <label>
             Profit center
-            <select value={profitCenter} onChange={(e) => setProfitCenter(e.target.value as "GGC" | "The Nest")} disabled={pcs.length < 2}>
+            <select value={profitCenter} onChange={(e) => setProfitCenter(e.target.value as "GGC" | "The Nest")} disabled={pcs.length < 2 || !!correcting}>
               {pcs.map((p) => (
                 <option key={p}>{p}</option>
               ))}
@@ -136,8 +172,8 @@ export default function NewEntry({ user }: { user: AppUser }) {
         ) : null}
         {built && <EntryPreview entries={built.entries} accounts={ctx.accounts} />}
         {serverError && <p className="error">{serverError}</p>}
-        <button disabled={busy || !built?.entries.length || built.errors.length > 0} onClick={submit}>
-          {busy ? "Submitting…" : "Submit for approval"}
+        <button disabled={busy || !built?.entries.length || built.errors.length > 0 || (!!correcting && !reason.trim())} onClick={submit}>
+          {busy ? "Submitting…" : correcting ? "Reverse and submit correction" : "Submit for approval"}
         </button>
       </div>
     </section>
