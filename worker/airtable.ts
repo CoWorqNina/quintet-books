@@ -57,6 +57,25 @@ async function airtableFetch(env: Env, path: string, init: RequestInit = {}): Pr
   }
 }
 
+export async function createRecords<F>(env: Env, table: string, fields: F[]): Promise<AirtableRecord<F>[]> {
+  const out: AirtableRecord<F>[] = [];
+  for (let i = 0; i < fields.length; i += 10) {
+    const page = (await airtableFetch(env, table, {
+      method: "POST",
+      body: JSON.stringify({ records: fields.slice(i, i + 10).map((f) => ({ fields: f })), typecast: true }),
+    })) as { records: AirtableRecord<F>[] };
+    out.push(...page.records);
+  }
+  return out;
+}
+
+export async function updateRecord<F>(env: Env, table: string, id: string, fields: Partial<F>): Promise<AirtableRecord<F>> {
+  return (await airtableFetch(env, `${table}/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify({ fields, typecast: true }),
+  })) as AirtableRecord<F>;
+}
+
 export async function listAll<F>(env: Env, table: string, params: Record<string, string> = {}) {
   const records: AirtableRecord<F>[] = [];
   let offset: string | undefined;
@@ -139,6 +158,11 @@ type PartyFields = Partial<{
   Books: Party["books"];
   "Profit Center": Party["profitCenter"];
   Active: boolean;
+  "Approval Status": "Pending" | "Approved" | "Rejected";
+  "Contact Details": string;
+  "Payment Terms": string;
+  "Items Supplied": string;
+  "Added By": string;
 }>;
 
 export function toParty(record: AirtableRecord<PartyFields>): Party {
@@ -150,6 +174,13 @@ export function toParty(record: AirtableRecord<PartyFields>): Party {
     books: f.Books ?? [],
     profitCenter: f["Profit Center"] ?? null,
     active: f.Active ?? false,
+    // Suppliers need owner approval before use; everyone else is usable once active.
+    approved: f.Type === "Supplier" ? f["Approval Status"] === "Approved" : true,
+    approvalStatus: f["Approval Status"] ?? null,
+    contactDetails: f["Contact Details"] ?? null,
+    paymentTerms: f["Payment Terms"] ?? null,
+    itemsSupplied: f["Items Supplied"] ?? null,
+    addedBy: f["Added By"] ?? null,
   };
 }
 

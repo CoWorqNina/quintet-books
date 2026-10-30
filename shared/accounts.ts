@@ -1,4 +1,4 @@
-import type { Account, ProfitCenter } from "./types";
+import type { Account, Book, ProfitCenter } from "./types";
 
 // Fixed accounts the Section 7 templates post to, per profit center. The Nest keeps its own
 // cash, GCash and clearing accounts. Banks are chosen freely when money is deposited or paid out
@@ -106,4 +106,56 @@ export function isBankAccount(a: Account | undefined): a is Account {
 /** Any active Store cash account, on hand or in a bank (for transfers between own accounts). */
 export function isStoreCashAccount(a: Account | undefined): a is Account {
   return !!a && a.active && !a.isHeader && a.isCashAccount && bookAllowed(a, "Store");
+}
+
+export type AccountFilter =
+  | "expense" // COGS or operating expense ("expense line")
+  | "bank" // bank or e-wallet in the book
+  | "payFrom" // bank, e-wallet or the profit center's petty cash
+  | "receiveInto" // bank, e-wallet or cash on hand
+  | "cash" // any cash account in the book
+  | "reimbursement" // Reimbursements Payable per person (2111-2114)
+  | "ppe" // property & equipment classes
+  | "deposit" // refundable deposits
+  | "employeeReceivable" // 1241-1244
+  | "grossPay" // salaries and Steph's payroll
+  | "loan" // loans payable to lenders
+  | "postable"; // any active, non-header account in the book
+
+export interface FilterContext {
+  book: Book;
+  profitCenter: "GGC" | "The Nest";
+}
+
+export const GROSS_PAY_ACCOUNTS = ["6100", "6105", "6110", "6510"];
+
+export function accountMatches(filter: AccountFilter, a: Account | undefined, ctx: FilterContext): a is Account {
+  if (!a || !a.active || a.isHeader || !bookAllowed(a, ctx.book)) return false;
+  const cash = ctx.book === "Store" ? cashAccountsFor(ctx.profitCenter) : null;
+  switch (filter) {
+    case "expense":
+      return isExpenseAccount(a) && profitCenterAllowed(a, ctx.book === "Commissary" ? "GGC" : ctx.profitCenter);
+    case "bank":
+      return a.isCashAccount && !CASH_ON_HAND.has(a.code);
+    case "payFrom":
+      return (a.isCashAccount && !CASH_ON_HAND.has(a.code)) || a.code === cash?.pettyCash;
+    case "receiveInto":
+      return a.isCashAccount && (!CASH_ON_HAND.has(a.code) || a.code === cash?.forDeposit || a.code === cash?.pettyCash);
+    case "cash":
+      return a.isCashAccount;
+    case "reimbursement":
+      return a.parentCode === "2110";
+    case "ppe":
+      return a.parentCode === "1500" && a.type === "Asset";
+    case "deposit":
+      return a.parentCode === "1400" && a.code !== "1430";
+    case "employeeReceivable":
+      return a.parentCode === "1240";
+    case "grossPay":
+      return GROSS_PAY_ACCOUNTS.includes(a.code);
+    case "loan":
+      return a.parentCode === "2200" && a.type === "Liability" && a.code !== "2250" && a.code !== "2260";
+    case "postable":
+      return true;
+  }
 }

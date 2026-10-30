@@ -42,6 +42,15 @@ export function useAccounts(): Account[] {
   return accounts;
 }
 
+/** All active parties (suppliers, employees, owners, lenders). */
+export function useParties(): Party[] {
+  const [parties, setParties] = useState<Party[]>([]);
+  useEffect(() => {
+    load<Party[]>("/parties").then(setParties).catch(() => {});
+  }, []);
+  return parties;
+}
+
 export function useEmployees(profitCenter?: string): Party[] {
   const [parties, setParties] = useState<Party[]>([]);
   useEffect(() => {

@@ -1,45 +1,63 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { toDbEntry } from "../../shared/entries";
-import { getTemplate, type Values } from "../../shared/templates";
+import { type Field, getTemplate, type Row, type Values } from "../../shared/templates";
 import type { JournalEntry } from "../../shared/types";
-import { checkEntryDate, checkProfitCenter, isOwner, scopeQuery, seesEverything } from "../access";
+import type { Book } from "../../shared/types";
+import { checkEntryDate, isOwner, scopeQuery, seesEverything } from "../access";
 import { getAccounts } from "../airtable";
 import { badRequest, dbError, forbidden } from "../db";
 import type { AppContext } from "../env";
 import { canBatchApprove, ENTRY_SELECT, getUserNames, toJournalEntry } from "../journal";
 import { serviceClient } from "../supabase";
+import { templateContext } from "../templateContext";
 import { cleanAttachments } from "./attachments";
 
 export const entries = new Hono<AppContext>();
 
-// New entry from a standalone template (#5, #7-#11). The server rebuilds the lines itself.
+// New entry from a template. The server rebuilds the lines itself from the submitted values.
 entries.post("/", async (c) => {
   const user = c.get("user");
-  const body = await c.req.json<{ template: number; profitCenter: "GGC" | "The Nest"; values: Values }>();
+  const body = await c.req.json<{ template: number; book?: Book; profitCenter: "GGC" | "The Nest"; values: Values }>();
   const template = getTemplate(Number(body.template));
   if (!template) badRequest("Unknown transaction type.");
   if (!template.roles.includes(user.role)) forbidden(`Your role can't enter ${template.name}.`);
-  checkProfitCenter(user, body.profitCenter);
+  const book = body.book ?? template.books[0];
+  if (!template.books.includes(book)) badRequest(`${template.name} can't be entered in the ${book} book.`);
 
-  const values: Values = { ...body.values };
-  for (const f of template.fields) {
-    if (f.type === "attachment") values[f.name] = cleanAttachments(values[f.name] ? [values[f.name]] : [])[0] ?? null;
-  }
+  const values = cleanValues(template.fields, body.values ?? {});
   checkEntryDate(String(values.date ?? ""));
-
-  const accounts = new Map((await getAccounts(c.env)).map((a) => [a.code, a]));
-  const { entry, errors } = template.build(values, { profitCenter: body.profitCenter, accounts });
-  if (errors.length || !entry) return c.json({ error: errors[0] ?? "Nothing to record.", errors }, 400);
+  const ctx = await templateContext(c.env, user, book, body.profitCenter);
+  const { entries: drafts, errors } = template.build(values, ctx);
+  if (errors.length || !drafts.length) return c.json({ error: errors[0] ?? "Nothing to record.", errors }, 400);
 
   const { data, error } = await serviceClient(c.env).rpc("create_entries", {
     p_user: user.id,
-    p_entries: [toDbEntry(entry)],
+    p_entries: drafts.map((d) => ({ ...toDbEntry(d), form: { template: template.number, book, profitCenter: ctx.profitCenter, values } })),
     p_submit: true,
   });
   dbError(error);
   return c.json({ entryIds: data });
 });
+
+/** Keeps only attachments this app uploaded, at the top level and inside line rows. */
+function cleanValues(fields: Field[], raw: Values): Values {
+  const values: Values = { ...raw };
+  for (const f of fields) {
+    if (f.type === "attachment") values[f.name] = cleanAttachments(values[f.name] ? [values[f.name]] : [])[0] ?? null;
+    if (f.type === "rows") {
+      const rows = Array.isArray(values[f.name]) ? (values[f.name] as Row[]) : [];
+      values[f.name] = rows.slice(0, 100).map((r) => {
+        const row: Row = { ...r };
+        for (const col of f.columns ?? []) {
+          if (col.type === "attachment") row[col.name] = cleanAttachments(row[col.name] ? [row[col.name]] : [])[0] ?? null;
+        }
+        return row;
+      });
+    }
+  }
+  return values;
+}
 
 // Journal: entries with their lines, filtered by the caller's visibility.
 entries.get("/", async (c) => {

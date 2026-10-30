@@ -51,6 +51,13 @@ export interface Party {
   books: Book[];
   profitCenter: "GGC" | "The Nest" | null;
   active: boolean;
+  /** Suppliers need owner approval before use; other party types are always approved. */
+  approved: boolean;
+  approvalStatus: "Pending" | "Approved" | "Rejected" | null;
+  contactDetails: string | null;
+  paymentTerms: string | null;
+  itemsSupplied: string | null;
+  addedBy: string | null;
 }
 
 export interface Period {

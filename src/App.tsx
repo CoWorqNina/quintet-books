@@ -4,7 +4,7 @@ import { NavLink, Route, Routes } from "react-router-dom";
 import type { AppUser } from "../shared/types";
 import { api, ApiRequestError } from "./lib/api";
 import { supabase } from "./lib/supabase";
-import { DAILY_REPORT_ROLES, TEMPLATES } from "../shared/templates";
+import { DAILY_REPORT_ROLES, templatesFor } from "../shared/templates";
 import Accounts from "./pages/Accounts";
 import Approvals from "./pages/Approvals";
 import DailyReport from "./pages/DailyReport";
@@ -13,6 +13,7 @@ import Home from "./pages/Home";
 import Journal from "./pages/Journal";
 import Login from "./pages/Login";
 import NewEntry from "./pages/NewEntry";
+import Parties from "./pages/Parties";
 import SetPassword from "./pages/SetPassword";
 
 export default function App() {
@@ -53,7 +54,7 @@ export default function App() {
   if (!user) return <p className="center muted">Loading your account…</p>;
 
   const canReport = DAILY_REPORT_ROLES.includes(user.role);
-  const canEnter = TEMPLATES.some((t) => t.roles.includes(user.role));
+  const canEnter = templatesFor(user.role, user.books).length > 0;
   const isOwner = user.role === "Owner";
 
   return (
@@ -68,6 +69,7 @@ export default function App() {
           {canEnter && <NavLink to="/entries/new">New entry</NavLink>}
           {isOwner && <NavLink to="/approvals">Approvals</NavLink>}
           <NavLink to="/journal">Journal</NavLink>
+          <NavLink to="/parties">Suppliers &amp; people</NavLink>
           <NavLink to="/accounts">Chart of Accounts</NavLink>
         </nav>
         <span className="who">
@@ -85,6 +87,7 @@ export default function App() {
           {canEnter && <Route path="/entries/new" element={<NewEntry user={user} />} />}
           {isOwner && <Route path="/approvals" element={<Approvals />} />}
           <Route path="/journal" element={<Journal user={user} />} />
+          <Route path="/parties" element={<Parties user={user} />} />
           <Route path="/accounts" element={<Accounts />} />
           <Route path="*" element={<p>Page not found.</p>} />
         </Routes>

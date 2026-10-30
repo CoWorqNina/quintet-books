@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import type { Period } from "../shared/types";
 import { isOwner, todayManila } from "./access";
-import { AirtableError, getAccounts, getParties } from "./airtable";
+import { AirtableError, getAccounts } from "./airtable";
 import { requireUser } from "./auth";
 import { exportLedger, gzipJson, nightlyBackup } from "./backup";
 import { forbidden } from "./db";
@@ -10,6 +10,7 @@ import type { AppContext, Env } from "./env";
 import { attachments } from "./routes/attachments";
 import { dailyReports } from "./routes/dailyReports";
 import { entries } from "./routes/entries";
+import { parties } from "./routes/parties";
 import { serviceClient } from "./supabase";
 
 const app = new Hono<AppContext>().basePath("/api");
@@ -29,12 +30,6 @@ app.get("/me", (c) => c.json(c.get("user")));
 
 app.get("/accounts", async (c) => c.json(await getAccounts(c.env)));
 
-app.get("/parties", async (c) => {
-  const type = c.req.query("type");
-  const parties = (await getParties(c.env)).filter((p) => p.active && (!type || p.type === type));
-  return c.json(parties);
-});
-
 app.get("/periods", async (c) => {
   const { data, error } = await serviceClient(c.env)
     .from("periods")
@@ -53,6 +48,7 @@ app.get("/periods", async (c) => {
 app.route("/attachments", attachments);
 app.route("/daily-reports", dailyReports);
 app.route("/entries", entries);
+app.route("/parties", parties);
 
 // Owners can download the whole ledger at any time.
 app.get("/backup", async (c) => {
