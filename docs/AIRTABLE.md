@@ -8,7 +8,8 @@ Cloudflare Worker secret. The browser never sees the token.
 
 A new base is created for each fiscal year (see `docs/DECISIONS.md`). Journal data
 (Entries, Entry Lines, Account Period Balances, Audit Log) lives in Supabase Postgres; those
-Airtable tables were deleted on Oct 29, 2026.
+Airtable tables were deleted on Oct 29, 2026. Users and Periods also live in Supabase
+(`app_users`, `periods`); their Airtable copies were deleted on Oct 31, 2026.
 
 ## Tables (Phase 0)
 
@@ -16,10 +17,8 @@ Airtable tables were deleted on Oct 29, 2026.
 |---|---|---|
 | Books | `tbls3bF4VCbbMaiZp` | Store, Commissary |
 | Profit Centers | `tblkmJz78OWoT0Bbm` | GGC, The Nest, Shared |
-| Accounts | `tblmBkqperzEAxWwa` | 185 rows seeded from `docs/source/chart-of-accounts.xlsx` (31 headers) |
-| Periods | `tbl4eSx8Uk9cmuAkm` | Superseded by Supabase `periods`; to be deleted |
+| Accounts | `tblmBkqperzEAxWwa` | 185 rows seeded from `docs/source/chart-of-accounts.xlsx` (31 headers), plus 1158 GCash – The Nest |
 | Parties | `tblg89x5iUorCvTpN` | Suppliers, employees, owners, lenders, platforms |
-| Users | `tblNyxd2VqVyhSuyd` | Superseded by Supabase `app_users`; to be deleted |
 | Transaction Types | `tblTYOQYyyPLQw2dN` | Section 7 list (seeded in Phase 1) |
 | Template Lines | `tblNu20xBBJdbM6c7` | Allowed accounts per template line |
 | Judgment Log | `tbldoKvRYg9uEsu4d` | Adjustments & Judgment Log |

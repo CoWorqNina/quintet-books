@@ -242,7 +242,7 @@ const platformPayout: Template = {
 const cashDeposit: Template = {
   number: 9,
   name: "Cash Deposit",
-  roles: OWNERS_ACCOUNTANT,
+  roles: [...OWNERS_ACCOUNTANT, "Supervisor"],
   batchApproval: true,
   fields: [
     dateField,

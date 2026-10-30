@@ -17,10 +17,10 @@ Accounting decisions are also recorded in the Airtable Judgment Log.
 | 2026-10-31 | Refunds: each channel uses the POS net figure; refunds stay off the ledger. | Nina |
 | 2026-10-31 | Paid-outs from the drawer are tagged by the encoder: expense (#11), employee cash advance (#26) or unclassified (#39, Suspense until classified). One entry per paid-out so each keeps its own receipt. | Nina / Build |
 | 2026-10-31 | Food charges are split per employee on the daily report; the split must equal the POS food charges. | Nina |
-| 2026-10-31 | The Nest uses the same daily report from its own POS, posting to its own cash and clearing accounts (1156, 1157, 1184-1186). Its bank and GCash accounts are not set up yet, so Nest GCash sales, deposits and payouts are blocked until they are. | Nina / Build |
+| 2026-10-31 | The Nest uses the same daily report from its own POS, posting to its own cash, GCash and clearing accounts (1156, 1157, 1158, 1184-1186). 1158 E-Wallet – GCash – The Nest was added. The Nest has no bank account yet, so Nest bank deposits and bank payouts are blocked until one is set up. | Nina / Build |
 | 2026-10-31 | Employees are kept in the Airtable Parties table (Type = Employee) so management can edit them anytime. | Nina |
 | 2026-10-31 | Petty cash on #1 moves by the difference needed to end at the counted next-day amount (e.g. Oct 29: ₱3,615 − ₱2,289 + ₱3,869 = ₱5,195). | Build |
-| 2026-10-31 | Payouts, deposits and transfers (#7-#10) are entered by Owner/Accountant only, as Section 4 lists only sales, purchases and petty cash for Supervisors and Staff. Easy to widen. | Build |
+| 2026-10-31 | Payouts and transfers (#7, #8, #10) are entered by Owner/Accountant only. Cash deposits (#9) can also be entered by Supervisors. | Nina / Build |
 | 2026-10-31 | Entries can't be dated before go-live (Nov 1, 2026) or in the future. | Build |
 | 2026-10-29 | 6550 Platform & Card Fees rolls up directly under Operating Expenses, not under Marketing (its code sits inside 6500–6599). | Build |
 

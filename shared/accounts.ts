@@ -1,7 +1,7 @@
 import type { Account, ProfitCenter } from "./types";
 
 // Fixed accounts the Section 7 templates post to, per profit center. The Nest keeps its own
-// cash and clearing accounts; its bank and GCash accounts are not set up yet (1158-1159).
+// cash, GCash and clearing accounts; it has no bank account of its own yet (1159 is reserved).
 export const CASH_ACCOUNTS: Record<
   "GGC" | "The Nest",
   {
@@ -26,7 +26,7 @@ export const CASH_ACCOUNTS: Record<
   "The Nest": {
     forDeposit: "1156",
     pettyCash: "1157",
-    gcash: null,
+    gcash: "1158",
     bank: null,
     cardClearing: "1184",
     grabClearing: "1185",

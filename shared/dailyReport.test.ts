@@ -112,15 +112,16 @@ describe("buildDailyReport", () => {
     expect(errors).toMatch(/5210 Coffee Beans can't be tagged GGC/);
   });
 
-  it("uses The Nest's own cash accounts and blocks GCash until its account exists", () => {
+  it("uses The Nest's own cash and GCash accounts", () => {
     const input = oct29();
     input.profitCenter = "The Nest";
     input.paidOuts = [];
-    input.drawer.nextDayPettyCash = 5195 - 2289;
+    input.drawer.nextDayPettyCash = 5195;
     input.drawer.cashRemitted = 18000 + 2289;
     input.drawer.actualCash = 23195 + 2289;
     const r = buildDailyReport(input, accounts);
-    expect(r.errors.join("\n")).toMatch(/The Nest's GCash account is not set up/);
+    expect(r.errors).toEqual([]);
+    expect(r.entries.find((e) => e.transaction_type === 2)!.lines[0].account_code).toBe("1158");
     const cash = r.entries.find((e) => e.transaction_type === 1)!;
     expect(cash.lines.map((l) => l.account_code)).toEqual(expect.arrayContaining(["1156", "1157"]));
     expect(cash.lines.find((l) => l.account_code === "4100")!.profit_center).toBe("The Nest");
