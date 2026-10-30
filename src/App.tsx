@@ -11,6 +11,7 @@ import DailyReport from "./pages/DailyReport";
 import DailyReports from "./pages/DailyReports";
 import Home from "./pages/Home";
 import Journal from "./pages/Journal";
+import Ledger from "./pages/Ledger";
 import Login from "./pages/Login";
 import Classify from "./pages/Classify";
 import ManualEntry from "./pages/ManualEntry";
@@ -76,6 +77,7 @@ export default function App() {
           {canEnter && <NavLink to="/entries/new">New entry</NavLink>}
           {isOwner && <NavLink to="/approvals">Approvals</NavLink>}
           <NavLink to="/journal">Journal</NavLink>
+          {isBooks && <NavLink to="/ledger">Ledger</NavLink>}
           {isBooks && <NavLink to="/classify">For classification</NavLink>}
           {isBooks && <NavLink to="/entries/manual">Special entry</NavLink>}
           {isBooks && <NavLink to="/registers">Registers</NavLink>}
@@ -104,6 +106,7 @@ export default function App() {
           {isOwner && <Route path="/opening-balances" element={<ManualEntry user={user} opening />} />}
           {isBooks && <Route path="/classify" element={<Classify user={user} />} />}
           {isBooks && <Route path="/registers" element={<Registers user={user} />} />}
+          {isBooks && <Route path="/ledger/*" element={<Ledger />} />}
           <Route path="*" element={<p>Page not found.</p>} />
         </Routes>
       </main>

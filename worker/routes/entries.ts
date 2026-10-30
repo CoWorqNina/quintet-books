@@ -71,10 +71,12 @@ entries.get("/", async (c) => {
   const period = c.req.query("period");
   const status = c.req.query("status");
   const reportId = c.req.query("dailyReport");
+  const entryId = c.req.query("entry");
   let query = db.from("entries").select(ENTRY_SELECT).order("entry_date", { ascending: false }).order("id", { ascending: false });
   if (period) query = query.eq("period_key", period);
   if (status) query = query.eq("status", status);
   if (reportId) query = query.eq("daily_report_id", Number(reportId));
+  if (entryId) query = query.or(`id.eq.${Number(entryId)},reverses_entry_id.eq.${Number(entryId)},classifies_entry_id.eq.${Number(entryId)}`);
   query = scopeQuery(query, user).limit(500);
   const [{ data, error }, accounts, names] = await Promise.all([query, getAccounts(c.env), getUserNames(db)]);
   dbError(error);

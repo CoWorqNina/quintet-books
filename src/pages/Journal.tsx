@@ -9,12 +9,14 @@ const STATUSES = ["", "Submitted", "Approved", "Rejected", "Cancelled"];
 export default function Journal({ user }: { user: AppUser }) {
   const [params, setParams] = useSearchParams();
   const dailyReport = params.get("dailyReport");
-  const period = params.get("period") ?? (dailyReport ? "" : todayManila().slice(0, 7));
+  const entry = params.get("entry");
+  const period = params.get("period") ?? (dailyReport || entry ? "" : todayManila().slice(0, 7));
   const status = params.get("status") ?? "";
   const query = new URLSearchParams();
   if (period) query.set("period", period);
   if (status) query.set("status", status);
   if (dailyReport) query.set("dailyReport", dailyReport);
+  if (entry) query.set("entry", entry);
   const { data, error, reload } = useLoad<JournalEntry[]>(`/entries?${query}`);
 
   const update = (k: string, v: string) => {
@@ -22,6 +24,7 @@ export default function Journal({ user }: { user: AppUser }) {
     if (v) next.set(k, v);
     else next.delete(k);
     next.delete("dailyReport");
+    next.delete("entry");
     setParams(next);
   };
 
@@ -65,6 +68,7 @@ export default function Journal({ user }: { user: AppUser }) {
           ))}
         </select>
         {dailyReport && <span className="badge info">Daily report {dailyReport}</span>}
+        {entry && <span className="badge info">Entry #{entry} and its reversal / classification</span>}
       </div>
       <p className="muted">Only Approved entries count in the ledger and statements.</p>
       {error && <p className="error">{error}</p>}
