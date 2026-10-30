@@ -69,8 +69,8 @@ export default function App() {
           {canEnter && <NavLink to="/entries/new">New entry</NavLink>}
           {isOwner && <NavLink to="/approvals">Approvals</NavLink>}
           <NavLink to="/journal">Journal</NavLink>
-          <NavLink to="/parties">Suppliers &amp; people</NavLink>
-          <NavLink to="/accounts">Chart of Accounts</NavLink>
+          <NavLink to="/parties">People</NavLink>
+          <NavLink to="/accounts">Accounts</NavLink>
         </nav>
         <span className="who">
           {user.fullName} · {user.role}

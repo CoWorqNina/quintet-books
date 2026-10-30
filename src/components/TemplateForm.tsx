@@ -68,7 +68,10 @@ function RowsField({
   parties: Party[];
 }) {
   const update = (i: number, name: string, v: Row[string]) => onChange(rows.map((r, j) => (j === i ? { ...r, [name]: v } : r)));
-  const total = sumCents(rows.map((r) => toCents(r.amount as string)));
+  // Lines without an amount column (e.g. products) are quantity × price.
+  const total = sumCents(
+    rows.map((r) => (r.amount !== undefined ? toCents(r.amount as string) : toCents((Number(r.quantity) || 0) * (Number(r.unitPrice) || 0)))),
+  );
   return (
     <div>
       <span className="label">

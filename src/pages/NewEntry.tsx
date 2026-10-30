@@ -99,7 +99,7 @@ export default function NewEntry({ user }: { user: AppUser }) {
             </select>
           </label>
         )}
-        {(ctx.book === "Store" || template.twoBook) && (
+        {ctx.book === "Store" && (!template.twoBook || template.fields.some((f) => f.filter === "payFrom")) && (
           <label>
             Profit center
             <select value={profitCenter} onChange={(e) => setProfitCenter(e.target.value as "GGC" | "The Nest")} disabled={pcs.length < 2}>
