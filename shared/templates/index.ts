@@ -3,6 +3,7 @@ import { bankCharges, cardPayout, cashDeposit, platformPayout, popUpSales, trans
 import type { Template } from "./common";
 import { commissarySettlement, storePaysCommissaryCost, transferBilling } from "./commissary";
 import { employeeAdvance, receivableCollected, shortageWriteOff } from "./employees";
+import { contributionsRemittance, payrollAccrual, payrollPayment, thirteenthMonthPayment } from "./payroll";
 import {
   advanceApplied,
   personalFundPurchase,
@@ -40,6 +41,10 @@ export const TEMPLATES: Template[] = [
   storePaysCommissaryCost,
   transferBilling,
   commissarySettlement,
+  payrollAccrual,
+  payrollPayment,
+  contributionsRemittance,
+  thirteenthMonthPayment,
 ].sort((a, b) => a.number - b.number);
 
 export function getTemplate(n: number): Template | undefined {

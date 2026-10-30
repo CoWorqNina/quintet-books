@@ -262,3 +262,62 @@ describe("Commissary templates (both books)", () => {
     ]);
   });
 });
+
+describe("payroll templates", () => {
+  const accrual = {
+    date: "2026-11-15",
+    gross: [
+      { account: "6100", profitCenter: "GGC", amount: 30000 },
+      { account: "6100", profitCenter: "The Nest", amount: 8000 },
+      { account: "6510", profitCenter: "GGC", amount: 6000 },
+    ],
+    sssEr: 2500, philhealthEr: 900, pagibigEr: 400, erNest: 600,
+    sssEe: 1250, philhealthEe: 900, pagibigEe: 400,
+    deductions: [{ employee: "recAna", receivable: "1243", amount: 207 }],
+    summary: photo,
+  };
+
+  it("#22 accrues gross pay by profit center and holds contributions and deductions as payables", () => {
+    const r = build(22, accrual);
+    expect(r.errors).toEqual([]);
+    expect(isBalanced(r.entries[0])).toBe(true);
+    expect(lines(r)).toEqual([
+      ["6100", 30000_00, 0],
+      ["6100", 8000_00, 0],
+      ["6510", 6000_00, 0],
+      ["6120", 3200_00, 0],
+      ["6120", 600_00, 0],
+      ["2141", 0, 3750_00],
+      ["2142", 0, 1800_00],
+      ["2143", 0, 800_00],
+      ["1243", 0, 207_00],
+      ["2130", 0, 41243_00],
+    ]);
+    expect(r.entries[0].lines.slice(0, 5).map((l) => l.profit_center)).toEqual(["GGC", "The Nest", "GGC", "GGC", "The Nest"]);
+    expect(r.entries[0].lines[8]).toMatchObject({ party_name: "Ana" });
+  });
+
+  it("#22 is dated on the 15th or month-end, and Commissary salaries stay in the Commissary book", () => {
+    expect(build(22, { ...accrual, date: "2026-11-14" }).errors).toContain("Payroll is recorded on the 15th or the last day of the month.");
+    expect(build(22, { ...accrual, date: "2026-11-30" }).errors).toEqual([]);
+    const comm = build(22, { ...accrual, gross: [{ account: "6100", amount: 1 }] }, testCtx({ book: "Commissary" }));
+    expect(comm.errors.join()).toMatch(/can't be used here/);
+  });
+
+  it("#23-#25 payment, remittance, 13th month", () => {
+    expect(lines(build(23, { date: "2026-11-20", period: "Nov 1–15", amount: 41243, paidFrom: "1140" }))).toEqual([
+      ["2130", 41243_00, 0],
+      ["1140", 0, 41243_00],
+    ]);
+    expect(lines(build(24, { date: "2026-12-10", sss: 3750, philhealth: 1800, pagibig: 800, paidFrom: "1140", reference: "Nov 2026", proof: photo }))).toEqual([
+      ["2141", 3750_00, 0],
+      ["2142", 1800_00, 0],
+      ["2143", 800_00, 0],
+      ["1140", 0, 6350_00],
+    ]);
+    expect(lines(build(25, { date: "2026-12-15", amount: 50000, paidFrom: "1140", list: photo }))).toEqual([
+      ["2135", 50000_00, 0],
+      ["1140", 0, 50000_00],
+    ]);
+  });
+});
