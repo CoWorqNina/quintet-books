@@ -62,4 +62,13 @@ select approve_entries(:kai, array[(select entry_id from fixed_assets limit 1)])
 select reverse_entry(:sup, (select entry_id from fixed_assets limit 1), 'Wrong supplier') as rev \gset
 select pg_temp.check(not entry_in_force((select entry_id from fixed_assets limit 1)), 'reversed asset purchase is no longer in force');
 
+select pg_temp.check(jsonb_array_length(registers_overview() -> 'loans') = 1, 'registers overview lists the loan');
+select pg_temp.check((registers_overview() -> 'assets' -> 0 ->> 'in_force')::boolean = false, 'overview shows the reversed asset out of force');
+
+-- Only one opening balance entry per book
+select create_entries(:nina, '[{"kind":"Opening","book":"Store","entry_date":"2026-12-03","reason":"Go-live balances (test date; 2026-10 is closed by the ledger test)",
+  "lines":[{"account_code":"1110","debit":100},{"account_code":"3100","credit":100}]}]', true);
+select pg_temp.expect_error(format($$select create_entries(%L, '[{"kind":"Opening","book":"Store","entry_date":"2026-12-03","reason":"again",
+  "lines":[{"account_code":"1110","debit":1},{"account_code":"3100","credit":1}]}]', true)$$, :nina), 'entries_one_opening_per_book');
+
 select 'ALL REGISTER TESTS PASSED' as result;

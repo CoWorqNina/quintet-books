@@ -15,7 +15,7 @@ export function EntryPreview({ entries, accounts }: { entries: EntryDraft[]; acc
           <div key={i} className="preview">
             <div className="preview-head">
               <strong>
-                #{e.transaction_type} {TEMPLATE_NAMES[e.transaction_type]}
+                {e.transaction_type === null ? e.kind : `#${e.transaction_type} ${TEMPLATE_NAMES[e.transaction_type]}`}
               </strong>
               <span className="muted">{e.description}</span>
               {e.unsupported && <span className="badge warn">No receipt</span>}

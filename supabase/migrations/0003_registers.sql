@@ -262,5 +262,31 @@ language sql stable as $$
   order by l.name
 $$;
 
+-- One opening balance entry per book (a reversal frees the slot for a corrected one).
+create unique index entries_one_opening_per_book on entries (book)
+  where kind = 'Opening' and status not in ('Rejected', 'Cancelled');
+
+-- All register records with whether their entry is in force, for the Registers screen.
+create function registers_overview() returns jsonb
+language sql stable as $$
+  select jsonb_build_object(
+    'assets', coalesce((select jsonb_agg(to_jsonb(a) || jsonb_build_object(
+        'in_force', entry_in_force(a.entry_id),
+        'entry_status', (select e.status from entries e where e.id = a.entry_id)) order by a.in_use_date, a.id)
+      from fixed_assets a), '[]'),
+    'spreads', coalesce((select jsonb_agg(to_jsonb(s) || jsonb_build_object(
+        'in_force', entry_in_force(s.entry_id),
+        'entry_status', (select e.status from entries e where e.id = s.entry_id)) order by s.start_month, s.id)
+      from spread_schedules s), '[]'),
+    'loans', coalesce((select jsonb_agg(to_jsonb(l) || jsonb_build_object(
+        'in_force', entry_in_force(l.entry_id),
+        'entry_status', (select e.status from entries e where e.id = l.entry_id),
+        'installments', (select jsonb_agg(jsonb_build_object(
+            'id', i.id, 'seq', i.seq, 'due_date', i.due_date, 'principal', i.principal, 'interest', i.interest,
+            'paid_entry_id', case when i.paid_entry_id is not null and entry_in_force(i.paid_entry_id) then i.paid_entry_id end)
+          order by i.seq) from loan_installments i where i.loan_id = l.id)) order by l.start_date, l.id)
+      from loans l), '[]'))
+$$;
+
 revoke execute on all functions in schema public from public, anon, authenticated;
 grant execute on all functions in schema public to service_role;

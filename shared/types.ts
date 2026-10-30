@@ -100,6 +100,12 @@ export interface JournalEntry {
   unsupported: boolean;
   attachments: { path: string; name: string; type: string; size: number }[];
   dailyReportId: number | null;
+  reversesEntryId: number | null;
+  classifiesEntryId: number | null;
+  /** The live reversal of this entry, if any. */
+  reversedBy: number | null;
+  /** Can be corrected by reversing and re-entering from its form. */
+  correctable: boolean;
   createdBy: string;
   createdAt: string;
   approvedBy: string | null;
