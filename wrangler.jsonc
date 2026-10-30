@@ -4,6 +4,10 @@
   "main": "worker/index.ts",
   "compatibility_date": "2026-09-01",
   "compatibility_flags": ["nodejs_compat"],
+  // App URL: https://ggc-books.nina-99a.workers.dev (custom domain can be added later).
+  "workers_dev": true,
+  // No per-version preview links: they would run against the live Supabase and Airtable data.
+  "preview_urls": false,
   "assets": {
     "not_found_handling": "single-page-application",
     "run_worker_first": ["/api/*"]

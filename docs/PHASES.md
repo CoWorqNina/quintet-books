@@ -3,7 +3,7 @@
 Source of truth: `docs/master-prompt.pdf` (Final version, Oct 29, 2026).
 Each phase ends with something usable and tested before the next one starts.
 
-## Phase 0 — Foundation (built; see docs/SETUP.md to deploy)
+## Phase 0 — Foundation (done, live at https://ggc-books.nina-99a.workers.dev)
 - GitHub repo, Cloudflare Worker (API + screens) on a free workers.dev subdomain
 - Supabase Auth with role + profit-center access stored per user
 - Supabase Postgres ledger schema (entries, lines, period balances, audit log) with
