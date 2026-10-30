@@ -26,7 +26,8 @@ export default function Login() {
 
   return (
     <form className="center card narrow" onSubmit={signIn}>
-      <h1>GGC Books</h1>
+      <img className="login-logo" src="/logo.png" alt="Go Go Chicken" />
+      <h1 style={{ textAlign: "center" }}>GGC Books</h1>
       <label>
         Email
         <input type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required />

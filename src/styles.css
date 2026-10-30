@@ -1,10 +1,13 @@
 :root {
-  --bg: #f7f6f3;
+  /* Go Go Chicken: red for actions, yellow only as a small highlight, black text */
+  --bg: #faf8f5;
   --surface: #ffffff;
-  --text: #1f1d1a;
+  --text: #1a1a1a;
   --muted: #6b665e;
-  --line: #e4e1da;
-  --accent: #b5521b;
+  --line: #e6e2dc;
+  --accent: #cc3300;
+  --accent-dark: #a82a00;
+  --highlight: #ffcc00;
   --error: #b42318;
   font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
   color: var(--text);
@@ -19,11 +22,15 @@ h2 { font-size: 1.1rem; margin: 0 0 0.5rem; }
 .shell main { padding: 1.25rem 1rem; max-width: 1100px; margin: 0 auto; }
 .topbar {
   display: flex; flex-wrap: wrap; gap: 0.75rem 1.25rem; align-items: center;
-  padding: 0.75rem 1rem; background: var(--surface); border-bottom: 1px solid var(--line);
+  padding: 0.5rem 1rem; background: var(--surface); border-bottom: 3px solid var(--highlight);
 }
-.topbar nav { display: flex; gap: 1rem; flex: 1; }
-.topbar nav a { color: var(--muted); text-decoration: none; }
-.topbar nav a.active { color: var(--accent); font-weight: 600; }
+.brand { display: flex; align-items: center; gap: 0.6rem; text-decoration: none; color: var(--text); }
+.brand img { height: 40px; width: auto; display: block; }
+.brand span { font-weight: 700; font-size: 1.05rem; }
+.login-logo { display: block; width: 220px; max-width: 70%; height: auto; margin: 0 auto 0.5rem; }
+.topbar nav { display: flex; flex-wrap: wrap; gap: 0.35rem 1rem; flex: 1; }
+.topbar nav a { color: var(--muted); text-decoration: none; white-space: nowrap; }
+.topbar nav a.active { color: var(--accent); font-weight: 600; box-shadow: inset 0 -2px 0 var(--highlight); }
 .who { color: var(--muted); font-size: 0.9rem; display: flex; gap: 0.75rem; align-items: center; }
 
 .card { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 1rem; margin: 1rem 0; }
@@ -33,8 +40,10 @@ form.card { display: flex; flex-direction: column; gap: 0.75rem; }
 label { display: flex; flex-direction: column; gap: 0.25rem; font-size: 0.9rem; }
 input { padding: 0.55rem 0.65rem; border: 1px solid var(--line); border-radius: 6px; font-size: 1rem; }
 button { padding: 0.55rem 0.9rem; border: 0; border-radius: 6px; background: var(--accent); color: #fff; font-size: 1rem; cursor: pointer; }
+button:hover:not(:disabled) { background: var(--accent-dark); }
 button:disabled { opacity: 0.6; }
-button.link { background: none; color: var(--accent); padding: 0; font-size: 0.9rem; }
+button.link, button.link:hover:not(:disabled) { background: none; color: var(--accent); padding: 0; font-size: 0.9rem; }
+a { color: var(--accent); }
 .muted { color: var(--muted); }
 .error { color: var(--error); }
 
@@ -50,7 +59,7 @@ h3 { font-size: 0.95rem; margin: 1rem 0 0.5rem; color: var(--muted); }
 select, textarea { padding: 0.5rem 0.6rem; border: 1px solid var(--line); border-radius: 6px; font-size: 1rem; background: #fff; font-family: inherit; }
 textarea { width: 100%; }
 a.button { display: inline-block; padding: 0.55rem 0.9rem; border-radius: 6px; background: var(--accent); color: #fff; text-decoration: none; }
-button.secondary { background: #fff; color: var(--accent); border: 1px solid var(--accent); }
+button.secondary, button.secondary:hover:not(:disabled) { background: #fff; color: var(--accent); border: 1px solid var(--accent); }
 button.small { padding: 0.3rem 0.7rem; font-size: 0.9rem; }
 button.link.danger, .danger { color: var(--error); }
 .form-page { max-width: 900px; }

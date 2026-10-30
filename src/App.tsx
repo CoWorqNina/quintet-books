@@ -64,7 +64,10 @@ export default function App() {
   return (
     <div className="shell">
       <header className="topbar">
-        <strong>GGC Books</strong>
+        <NavLink to="/" className="brand" end>
+          <img src="/logo.png" alt="Go Go Chicken" />
+          <span>Books</span>
+        </NavLink>
         <nav>
           <NavLink to="/" end>
             Home
