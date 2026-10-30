@@ -1,0 +1,19 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ggc-books",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-09-01",
+  "compatibility_flags": ["nodejs_compat"],
+  "assets": {
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "vars": {
+    "SUPABASE_URL": "https://vqfckhvepqvfmeltpicn.supabase.co",
+    "AIRTABLE_BASE_ID": "appAWl68GqjTKpOSb"
+  },
+  // Secrets (set with `wrangler secret put` or in the Cloudflare dashboard, never committed):
+  //   SUPABASE_SECRET_KEY  - Supabase secret key (sb_secret_...), server only
+  //   AIRTABLE_TOKEN       - Airtable personal access token scoped to the GGC Books base
+  "observability": { "enabled": true }
+}

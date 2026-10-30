@@ -17,9 +17,9 @@ Airtable tables were deleted on Oct 29, 2026.
 | Books | `tbls3bF4VCbbMaiZp` | Store, Commissary |
 | Profit Centers | `tblkmJz78OWoT0Bbm` | GGC, The Nest, Shared |
 | Accounts | `tblmBkqperzEAxWwa` | 185 rows seeded from `docs/source/chart-of-accounts.xlsx` (31 headers) |
-| Periods | `tbl4eSx8Uk9cmuAkm` | 2026-10 (opening balances) to 2027-12 |
+| Periods | `tbl4eSx8Uk9cmuAkm` | Superseded by Supabase `periods`; to be deleted |
 | Parties | `tblg89x5iUorCvTpN` | Suppliers, employees, owners, lenders, platforms |
-| Users | `tblNyxd2VqVyhSuyd` | Role and access per Supabase user ID |
+| Users | `tblNyxd2VqVyhSuyd` | Superseded by Supabase `app_users`; to be deleted |
 | Transaction Types | `tblTYOQYyyPLQw2dN` | Section 7 list (seeded in Phase 1) |
 | Template Lines | `tblNu20xBBJdbM6c7` | Allowed accounts per template line |
 | Judgment Log | `tbldoKvRYg9uEsu4d` | Adjustments & Judgment Log |
