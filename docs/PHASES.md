@@ -26,7 +26,7 @@ Each phase ends with something usable and tested before the next one starts.
 - Not yet: editing a submitted entry in place (cancel and re-enter instead), reversals UI,
   For Classification queue (Phase 2)
 
-## Phase 2 — Remaining templates and setup screens (built; run `supabase/migrations/0003_registers.sql`)
+## Phase 2 — Remaining templates and setup screens (done, live)
 - Templates #12–#40 and #43 (Opening Balances): purchases and AP, small items, Commissary
   billing and settlement (#19–#21, both books), payroll (#22–#25), employees (#26–#28),
   assets (#29), prepaids (#31), deposits (#32), loans (#33–#34), owner money (#35–#38)
