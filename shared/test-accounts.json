@@ -1366,5 +1366,41 @@
   "isCashAccount": false,
   "active": true,
   "description": null
+ },
+ {
+  "id": "rec5140",
+  "code": "5140",
+  "name": "Sauces",
+  "type": "COGS",
+  "normalBalance": "Dr",
+  "book": "Both",
+  "profitCenterRule": "GGC or The Nest (per line)",
+  "subLedger": null,
+  "cashFlowGroup": "Operating",
+  "statement": "Income Statement",
+  "statementLine": "Sauces",
+  "parentCode": "5000",
+  "isHeader": false,
+  "isCashAccount": false,
+  "active": true,
+  "description": null
+ },
+ {
+  "id": "rec5170",
+  "code": "5170",
+  "name": "LPG",
+  "type": "COGS",
+  "normalBalance": "Dr",
+  "book": "Both",
+  "profitCenterRule": "GGC or The Nest (per line)",
+  "subLedger": null,
+  "cashFlowGroup": "Operating",
+  "statement": "Income Statement",
+  "statementLine": "LPG",
+  "parentCode": "5000",
+  "isHeader": false,
+  "isCashAccount": false,
+  "active": true,
+  "description": null
  }
 ]

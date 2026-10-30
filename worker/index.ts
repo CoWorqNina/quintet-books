@@ -2,7 +2,10 @@ import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import type { Period } from "../shared/types";
 import { isOwner, todayManila } from "./access";
-import { AirtableError, getAccounts } from "./airtable";
+import { AirtableError, getAccounts, getProducts } from "./airtable";
+import { accountBalanceCents } from "./balances";
+import { DUE_TO_COMMISSARY } from "../shared/templates/commissary";
+import { getLoans } from "./registers";
 import { requireUser } from "./auth";
 import { exportLedger, gzipJson, nightlyBackup } from "./backup";
 import { forbidden } from "./db";
@@ -29,6 +32,17 @@ app.use("/*", requireUser);
 app.get("/me", (c) => c.json(c.get("user")));
 
 app.get("/accounts", async (c) => c.json(await getAccounts(c.env)));
+
+app.get("/products", async (c) => c.json(await getProducts(c.env)));
+
+app.get("/loans", async (c) => c.json(await getLoans(serviceClient(c.env))));
+
+// What the Store owes the Commissary (approved entries), for the monthly settlement.
+app.get("/balances/due-to-commissary", async (c) => {
+  const user = c.get("user");
+  if (!["Owner", "Accountant"].includes(user.role)) forbidden();
+  return c.json({ cents: -(await accountBalanceCents(serviceClient(c.env), "Store", DUE_TO_COMMISSARY)) });
+});
 
 app.get("/periods", async (c) => {
   const { data, error } = await serviceClient(c.env)

@@ -22,12 +22,12 @@ entries.post("/", async (c) => {
   const template = getTemplate(Number(body.template));
   if (!template) badRequest("Unknown transaction type.");
   if (!template.roles.includes(user.role)) forbidden(`Your role can't enter ${template.name}.`);
-  const book = body.book ?? template.books[0];
+  const book = template.twoBook ? "Store" : (body.book ?? template.books[0]);
   if (!template.books.includes(book)) badRequest(`${template.name} can't be entered in the ${book} book.`);
 
   const values = cleanValues(template.fields, body.values ?? {});
   checkEntryDate(String(values.date ?? ""));
-  const ctx = await templateContext(c.env, user, book, body.profitCenter);
+  const ctx = await templateContext(c.env, user, template, book, body.profitCenter);
   const { entries: drafts, errors } = template.build(values, ctx);
   if (errors.length || !drafts.length) return c.json({ error: errors[0] ?? "Nothing to record.", errors }, 400);
 

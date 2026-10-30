@@ -153,7 +153,8 @@ function Control({
         </select>
       );
     case "account": {
-      const options = accountList.filter((a) => accountMatches(f.filter ?? "postable", a, ctx));
+      const fctx = f.book ? { book: f.book, profitCenter: f.book === "Commissary" ? ("GGC" as const) : ctx.profitCenter } : ctx;
+      const options = accountList.filter((a) => accountMatches(f.filter ?? "postable", a, fctx));
       const groups = [...new Set(options.map((a) => a.statementLine))];
       return (
         <select value={String(v ?? "")} onChange={(e) => onChange(e.target.value)}>

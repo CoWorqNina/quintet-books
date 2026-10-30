@@ -35,6 +35,8 @@ export interface Field {
   showIf?: { field: string; values: string[] };
   /** Store book only (hidden for Commissary entries). */
   storeOnly?: boolean;
+  /** Book whose accounts an account field lists, when it differs from the entry's (two-book templates). */
+  book?: Book;
 }
 
 export type Scalar = string | number | boolean | null | undefined;
@@ -144,6 +146,7 @@ export function requireFields(fields: Field[], values: Values, ctx: TemplateCont
 }
 
 export function checkAccount(code: string, filter: AccountFilter, label: string, ctx: TemplateContext, errors: string[]) {
+  // (ctx may be a copy with another book for two-book templates)
   if (!code) return undefined;
   const a = ctx.accounts.get(code);
   const problem = a ? `${a.code} ${a.name} can't be used here` : "choose an account";
@@ -188,6 +191,7 @@ export const EXPENSE_COLUMNS: Field[] = [
  * (utilities, rent) are split by adding one row per profit center.
  */
 export function expenseLines(rows: Row[], ctx: TemplateContext, errors: string[], templateLine: string) {
+  // ctx.book decides which book's expense accounts are allowed
   const lines: LineDraft[] = [];
   let totalCents = 0;
   rows.forEach((row, i) => {

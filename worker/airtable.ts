@@ -1,3 +1,4 @@
+import type { Product } from "../shared/templates";
 import type { Account, Party } from "../shared/types";
 import type { Env } from "./env";
 
@@ -13,6 +14,7 @@ export const TABLES = {
   transactionTypes: "tblTYOQYyyPLQw2dN",
   templateLines: "tblNu20xBBJdbM6c7",
   judgmentLog: "tbldoKvRYg9uEsu4d",
+  commissaryProducts: "tblygMttsmTFToKoG",
 } as const;
 
 export interface AirtableRecord<F = Record<string, unknown>> {
@@ -191,6 +193,28 @@ export function getParties(env: Env): Promise<Party[]> {
     async () => {
       const records = await listAll<PartyFields>(env, TABLES.parties);
       return records.map(toParty).filter((p) => p.name).sort((a, b) => a.name.localeCompare(b.name));
+    },
+    60_000,
+  );
+}
+
+type ProductFields = Partial<{ Name: string; Unit: string; "COGS Account": string; Active: boolean }>;
+
+export function getProducts(env: Env): Promise<Product[]> {
+  return cached(
+    `products:${env.AIRTABLE_BASE_ID}`,
+    async () => {
+      const records = await listAll<ProductFields>(env, TABLES.commissaryProducts);
+      return records
+        .map((r) => ({
+          id: r.id,
+          name: (r.fields.Name ?? "").trim(),
+          unit: (r.fields.Unit ?? "").trim(),
+          cogsAccount: (r.fields["COGS Account"] ?? "").trim(),
+          active: r.fields.Active ?? false,
+        }))
+        .filter((p) => p.name)
+        .sort((a, b) => a.name.localeCompare(b.name));
     },
     60_000,
   );

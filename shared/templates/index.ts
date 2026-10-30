@@ -1,6 +1,7 @@
 import type { Role } from "../types";
 import { bankCharges, cardPayout, cashDeposit, platformPayout, popUpSales, transfer, unclassifiedCash } from "./cash";
 import type { Template } from "./common";
+import { commissarySettlement, storePaysCommissaryCost, transferBilling } from "./commissary";
 import { employeeAdvance, receivableCollected, shortageWriteOff } from "./employees";
 import {
   advanceApplied,
@@ -36,6 +37,9 @@ export const TEMPLATES: Template[] = [
   smallItem,
   unclassifiedCash,
   bankCharges,
+  storePaysCommissaryCost,
+  transferBilling,
+  commissarySettlement,
 ].sort((a, b) => a.number - b.number);
 
 export function getTemplate(n: number): Template | undefined {

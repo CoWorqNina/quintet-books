@@ -188,3 +188,77 @@ describe("employee templates", () => {
     expect(build(26, { date: "2026-11-03", employee: "recAna", amount: 1, paidFrom: "1145", proof: photo }, c).errors).toEqual([]);
   });
 });
+
+describe("Commissary templates (both books)", () => {
+  const products = new Map([
+    ["recMar", { id: "recMar", name: "Marinated Chicken", unit: "kg", cogsAccount: "5130", active: true }],
+    ["recSau", { id: "recSau", name: "Cheese Sauce", unit: "tub", cogsAccount: "5140", active: true }],
+    ["recBad", { id: "recBad", name: "Mystery", unit: "pc", cogsAccount: "6610", active: true }],
+  ]);
+  const c = testCtx({ products });
+
+  it("#20 bills the Store per product and keeps Due from/Due to equal", () => {
+    const r = build(20, {
+      date: "2026-11-04", billedTo: "GGC", reference: "DS-12", slip: photo,
+      lines: [{ product: "recMar", quantity: 10, unitPrice: 280 }, { product: "recSau", quantity: 2, unitPrice: 150.5 }],
+    }, c);
+    expect(r.errors).toEqual([]);
+    const [comm, store] = r.entries;
+    expect(comm.book).toBe("Commissary");
+    expect(lines(r, 0)).toEqual([
+      ["1280", 3101_00, 0],
+      ["4190", 0, 2800_00],
+      ["4190", 0, 301_00],
+    ]);
+    expect(store.book).toBe("Store");
+    expect(lines(r, 1)).toEqual([
+      ["5130", 2800_00, 0],
+      ["5140", 301_00, 0],
+      ["2180", 0, 3101_00],
+    ]);
+    expect(store.lines[0]).toMatchObject({ profit_center: "GGC", quantity: 10, unit: "kg", memo: "Marinated Chicken" });
+  });
+
+  it("#20 billing The Nest tags the Store COGS The Nest", () => {
+    const r = build(20, { date: "2026-11-04", billedTo: "The Nest", reference: "DS-13", slip: photo, lines: [{ product: "recMar", quantity: 1, unitPrice: 280 }] }, c);
+    expect(r.entries[1].lines[0].profit_center).toBe("The Nest");
+    expect(r.entries[1].profit_center).toBe("The Nest");
+  });
+
+  it("#20 refuses products not mapped to a COGS account", () => {
+    const r = build(20, { date: "2026-11-04", billedTo: "GGC", reference: "x", slip: photo, lines: [{ product: "recBad", quantity: 1, unitPrice: 1 }] }, c);
+    expect(r.errors.join()).toMatch(/no valid COGS account/);
+  });
+
+  it("#19 Store pays a Commissary cost: both books move", () => {
+    const r = build(19, { date: "2026-11-05", description: "LPG for Commissary", paidFrom: "1120", receipt: photo, lines: [{ account: "5170", amount: 1100, quantity: 1, unit: "tank", unitPrice: 1100 }] }, c);
+    expect(r.errors).toEqual([]);
+    expect(lines(r, 0)).toEqual([
+      ["2180", 1100_00, 0],
+      ["1120", 0, 1100_00],
+    ]);
+    expect(lines(r, 1)).toEqual([
+      ["5170", 1100_00, 0],
+      ["1280", 0, 1100_00],
+    ]);
+    expect(r.entries[1].lines[0].profit_center).toBe("GGC");
+    expect(build(19, { date: "2026-11-05", description: "x", paidFrom: "1145", receipt: photo, lines: [{ account: "5170", amount: 1 }] }, c).errors.join()).toMatch(
+      /Store paid from/,
+    );
+  });
+
+  it("#21 settlement must clear the full balance", () => {
+    const due = testCtx({ dueToCommissaryCents: 3101_00 });
+    expect(build(21, { date: "2026-11-30", amount: 3000, paidFrom: "1140", reference: "T1" }, due).errors.join()).toMatch(/clears the full balance/);
+    const r = build(21, { date: "2026-11-30", amount: 3101, paidFrom: "1140", reference: "T1" }, due);
+    expect(r.errors).toEqual([]);
+    expect(lines(r, 0)).toEqual([
+      ["2180", 3101_00, 0],
+      ["1140", 0, 3101_00],
+    ]);
+    expect(lines(r, 1)).toEqual([
+      ["1145", 3101_00, 0],
+      ["1280", 0, 3101_00],
+    ]);
+  });
+});
