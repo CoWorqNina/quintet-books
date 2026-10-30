@@ -26,11 +26,19 @@ Each phase ends with something usable and tested before the next one starts.
 - Not yet: editing a submitted entry in place (cancel and re-enter instead), reversals UI,
   For Classification queue (Phase 2)
 
-## Phase 2 — Remaining templates and setup screens
-- Templates #12–#40 and #43 (Opening Balances)
-- Setup screens: accounts, suppliers (with owner approval), employees, owners, lenders
-- Commissary products + COGS mapping; intercompany templates #19–#21 posting to both books
-- For Classification queue + Suspense; Supervisor edit/cancel via reversal
+## Phase 2 — Remaining templates and setup screens (built; run `supabase/migrations/0003_registers.sql`)
+- Templates #12–#40 and #43 (Opening Balances): purchases and AP, small items, Commissary
+  billing and settlement (#19–#21, both books), payroll (#22–#25), employees (#26–#28),
+  assets (#29), prepaids (#31), deposits (#32), loans (#33–#34), owner money (#35–#38)
+- Registers in Supabase, created in the same transaction as their entry: Fixed Asset Register,
+  prepaid/deferred spreads, Loan Tracker with installment schedule (solved from the lender's
+  installment or an agreed rate); go-live records entered on the Registers screen
+- Reverse any approved entry; correct template entries in place (reverse + re-enter from the
+  saved form, approved together). Reversal is dated like the original unless that month is Final
+- For Classification queue: Owner classifies #39 movements out of 1195 Suspense (Judgment Log)
+- Special / Adjusting entries line by line (Owner/Accountant, reason, approved one by one)
+- Setup screens: suppliers (with owner approval), employees, owners, lenders; accounts
+  (Owner adds under a header or deactivates when the balance is zero, Judgment Log)
 
 ## Phase 3 — Accounting cycle views
 - Journal, General Ledger, T-accounts, Trial Balance (unadjusted/adjusted/post-closing; per book and combined)

@@ -24,15 +24,17 @@ export interface LineDraft {
 }
 
 export interface EntryDraft {
-  kind: "Template";
-  transaction_type: number;
+  kind: "Template" | "Special" | "Adjusting" | "Opening";
+  transaction_type: number | null;
   book: Book;
-  profit_center: ProfitCenter;
+  profit_center: ProfitCenter | null;
   entry_date: string;
   description: string;
   source_document?: string | null;
   unsupported?: boolean;
   attachments?: Attachment[];
+  reason?: string | null;
+  classifies_entry_id?: number | null;
   lines: LineDraft[];
 }
 

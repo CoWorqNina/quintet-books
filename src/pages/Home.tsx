@@ -71,6 +71,16 @@ export default function Home({ user }: { user: AppUser }) {
       </div>
       {owner && (
         <div className="card">
+          <h2>Go-live setup</h2>
+          <p className="muted">
+            Enter the October 31, 2026 balances for each book, then add the assets, prepaids and loans that exist at go-live so their schedules
+            continue.
+          </p>
+          <Link to="/opening-balances">Opening balances (#43)</Link> · <Link to="/registers">Registers</Link>
+        </div>
+      )}
+      {owner && (
+        <div className="card">
           <h2>Backup</h2>
           <p className="muted">The ledger is backed up every night at 2 AM. You can also download a copy now.</p>
           <button className="secondary" onClick={downloadBackup}>

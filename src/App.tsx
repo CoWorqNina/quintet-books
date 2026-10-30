@@ -12,7 +12,10 @@ import DailyReports from "./pages/DailyReports";
 import Home from "./pages/Home";
 import Journal from "./pages/Journal";
 import Login from "./pages/Login";
-import NewEntry from "./pages/NewEntry";
+import Classify from "./pages/Classify";
+import ManualEntry from "./pages/ManualEntry";
+import NewEntry, { CorrectEntry } from "./pages/NewEntry";
+import Registers from "./pages/Registers";
 import Parties from "./pages/Parties";
 import SetPassword from "./pages/SetPassword";
 
@@ -56,6 +59,7 @@ export default function App() {
   const canReport = DAILY_REPORT_ROLES.includes(user.role);
   const canEnter = templatesFor(user.role, user.books).length > 0;
   const isOwner = user.role === "Owner";
+  const isBooks = isOwner || user.role === "Accountant";
 
   return (
     <div className="shell">
@@ -69,6 +73,9 @@ export default function App() {
           {canEnter && <NavLink to="/entries/new">New entry</NavLink>}
           {isOwner && <NavLink to="/approvals">Approvals</NavLink>}
           <NavLink to="/journal">Journal</NavLink>
+          {isBooks && <NavLink to="/classify">For classification</NavLink>}
+          {isBooks && <NavLink to="/entries/manual">Special entry</NavLink>}
+          {isBooks && <NavLink to="/registers">Registers</NavLink>}
           <NavLink to="/parties">People</NavLink>
           <NavLink to="/accounts">Accounts</NavLink>
         </nav>
@@ -88,7 +95,12 @@ export default function App() {
           {isOwner && <Route path="/approvals" element={<Approvals />} />}
           <Route path="/journal" element={<Journal user={user} />} />
           <Route path="/parties" element={<Parties user={user} />} />
-          <Route path="/accounts" element={<Accounts />} />
+          <Route path="/accounts" element={<Accounts user={user} />} />
+          {isBooks && <Route path="/entries/:id/correct" element={<CorrectEntry user={user} />} />}
+          {isBooks && <Route path="/entries/manual" element={<ManualEntry user={user} />} />}
+          {isOwner && <Route path="/opening-balances" element={<ManualEntry user={user} opening />} />}
+          {isBooks && <Route path="/classify" element={<Classify user={user} />} />}
+          {isBooks && <Route path="/registers" element={<Registers user={user} />} />}
           <Route path="*" element={<p>Page not found.</p>} />
         </Routes>
       </main>

@@ -107,7 +107,7 @@ export function clearCache(prefix = "") {
   for (const key of cache.keys()) if (key.startsWith(prefix)) cache.delete(key);
 }
 
-type AccountFields = Partial<{
+export type AccountFields = Partial<{
   Code: string;
   Name: string;
   Type: Account["type"];

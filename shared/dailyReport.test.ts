@@ -55,7 +55,7 @@ describe("buildDailyReport", () => {
     expect(line("7140").creditCents).toBe(45_20);
     expect(entryTotals(cash).debitCents).toBe(22043_80);
 
-    expect(r.entries.map((e) => e.transaction_type).sort((a, b) => a - b)).toEqual([1, 2, 3, 4, 4, 6, 11, 11, 11, 11, 11, 26, 39]);
+    expect(r.entries.map((e) => e.transaction_type).sort((a, b) => a! - b!)).toEqual([1, 2, 3, 4, 4, 6, 11, 11, 11, 11, 11, 26, 39]);
     const staff = r.entries.find((e) => e.transaction_type === 6)!;
     expect(staff.lines.filter((l) => l.account_code === "1243").map((l) => l.party_name)).toEqual(["Ana", "Ben"]);
   });

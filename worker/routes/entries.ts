@@ -8,7 +8,7 @@ import { checkEntryDate, isOwner, scopeQuery, seesEverything } from "../access";
 import { getAccounts } from "../airtable";
 import { badRequest, dbError, forbidden } from "../db";
 import type { AppContext } from "../env";
-import { canBatchApprove, ENTRY_SELECT, getUserNames, toJournalEntry } from "../journal";
+import { canBatchApprove, ENTRY_SELECT, getUserNames, toJournalEntry, withReversals } from "../journal";
 import { serviceClient } from "../supabase";
 import { templateContext } from "../templateContext";
 import { cleanAttachments } from "./attachments";
@@ -28,20 +28,25 @@ entries.post("/", async (c) => {
   const values = cleanValues(template.fields, body.values ?? {});
   checkEntryDate(String(values.date ?? ""));
   const ctx = await templateContext(c.env, user, template, book, body.profitCenter);
-  const { entries: drafts, errors } = template.build(values, ctx);
+  const { entries: drafts, errors, register } = template.build(values, ctx);
   if (errors.length || !drafts.length) return c.json({ error: errors[0] ?? "Nothing to record.", errors }, 400);
 
-  const { data, error } = await serviceClient(c.env).rpc("create_entries", {
-    p_user: user.id,
-    p_entries: drafts.map((d) => ({ ...toDbEntry(d), form: { template: template.number, book, profitCenter: ctx.profitCenter, values } })),
-    p_submit: true,
-  });
+  const form = { template: template.number, book, profitCenter: ctx.profitCenter, values };
+  const p_entries = drafts.map((d) => ({ ...toDbEntry(d), form }));
+  const db = serviceClient(c.env);
+  if (register) {
+    // Asset, prepaid or loan entries create their schedule record in the same transaction.
+    const { data, error } = await db.rpc("create_entries_with_register", { p_user: user.id, p_entries, p_register: register });
+    dbError(error);
+    return c.json({ entryIds: data.entry_ids, registerId: data.register_id });
+  }
+  const { data, error } = await db.rpc("create_entries", { p_user: user.id, p_entries, p_submit: true });
   dbError(error);
   return c.json({ entryIds: data });
 });
 
 /** Keeps only attachments this app uploaded, at the top level and inside line rows. */
-function cleanValues(fields: Field[], raw: Values): Values {
+export function cleanValues(fields: Field[], raw: Values): Values {
   const values: Values = { ...raw };
   for (const f of fields) {
     if (f.type === "attachment") values[f.name] = cleanAttachments(values[f.name] ? [values[f.name]] : [])[0] ?? null;
@@ -74,7 +79,7 @@ entries.get("/", async (c) => {
   const [{ data, error }, accounts, names] = await Promise.all([query, getAccounts(c.env), getUserNames(db)]);
   dbError(error);
   const accountMap = new Map(accounts.map((a) => [a.code, a]));
-  return c.json((data ?? []).map((r) => toJournalEntry(r, accountMap, names)) as JournalEntry[]);
+  return c.json(await withReversals(db, (data ?? []).map((r) => toJournalEntry(r, accountMap, names)) as JournalEntry[]));
 });
 
 // Approval queue: Submitted entries by other people (nobody approves their own).

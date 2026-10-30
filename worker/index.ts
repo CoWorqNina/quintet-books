@@ -10,10 +10,12 @@ import { requireUser } from "./auth";
 import { exportLedger, gzipJson, nightlyBackup } from "./backup";
 import { forbidden } from "./db";
 import type { AppContext, Env } from "./env";
+import { adjustments } from "./routes/adjustments";
 import { attachments } from "./routes/attachments";
 import { dailyReports } from "./routes/dailyReports";
 import { entries } from "./routes/entries";
 import { parties } from "./routes/parties";
+import { setup } from "./routes/setup";
 import { serviceClient } from "./supabase";
 
 const app = new Hono<AppContext>().basePath("/api");
@@ -61,8 +63,10 @@ app.get("/periods", async (c) => {
 
 app.route("/attachments", attachments);
 app.route("/daily-reports", dailyReports);
+app.route("/entries", adjustments);
 app.route("/entries", entries);
 app.route("/parties", parties);
+app.route("/", setup);
 
 // Owners can download the whole ledger at any time.
 app.get("/backup", async (c) => {
