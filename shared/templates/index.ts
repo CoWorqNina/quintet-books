@@ -1,8 +1,10 @@
 import type { Role } from "../types";
 import { bankCharges, cardPayout, cashDeposit, platformPayout, popUpSales, transfer, unclassifiedCash } from "./cash";
+import { assetPurchase, prepaidPayment, refundableDeposit } from "./assets";
 import type { Template } from "./common";
 import { commissarySettlement, storePaysCommissaryCost, transferBilling } from "./commissary";
 import { employeeAdvance, receivableCollected, shortageWriteOff } from "./employees";
+import { loanInstallment, loanProceeds, ownerAdvanceReturned, ownerLoanRepayment, ownerMoneyIn, ownerMoneyOut } from "./loans";
 import { contributionsRemittance, payrollAccrual, payrollPayment, thirteenthMonthPayment } from "./payroll";
 import {
   advanceApplied,
@@ -45,6 +47,15 @@ export const TEMPLATES: Template[] = [
   payrollPayment,
   contributionsRemittance,
   thirteenthMonthPayment,
+  assetPurchase,
+  prepaidPayment,
+  refundableDeposit,
+  loanProceeds,
+  loanInstallment,
+  ownerMoneyIn,
+  ownerLoanRepayment,
+  ownerMoneyOut,
+  ownerAdvanceReturned,
 ].sort((a, b) => a.number - b.number);
 
 export function getTemplate(n: number): Template | undefined {

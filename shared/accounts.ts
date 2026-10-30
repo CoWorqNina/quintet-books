@@ -120,6 +120,7 @@ export type AccountFilter =
   | "employeeReceivable" // 1241-1244
   | "grossPay" // salaries and Steph's payroll
   | "loan" // loans payable to lenders
+  | "interest" // interest expense per loan (7510-7530)
   | "postable"; // any active, non-header account in the book
 
 export interface FilterContext {
@@ -146,7 +147,10 @@ export function accountMatches(filter: AccountFilter, a: Account | undefined, ct
     case "reimbursement":
       return a.parentCode === "2110";
     case "ppe":
-      return a.parentCode === "1500" && a.type === "Asset";
+      // 1550 Smallwares (legacy) takes no new additions from Nov 1, 2026
+      return a.parentCode === "1500" && a.type === "Asset" && a.code !== "1550";
+    case "interest":
+      return a.parentCode === "7500";
     case "deposit":
       return a.parentCode === "1400" && a.code !== "1430";
     case "employeeReceivable":
@@ -159,3 +163,16 @@ export function accountMatches(filter: AccountFilter, a: Account | undefined, ct
       return true;
   }
 }
+
+/** Accumulated depreciation account for each Property & Equipment class. */
+export const ACCUMULATED_DEPRECIATION: Record<string, string> = {
+  "1510": "1591",
+  "1520": "1592",
+  "1530": "1593",
+  "1540": "1594",
+  "1550": "1595",
+  "1560": "1596",
+};
+
+/** Useful lives set by management, in months (renovation 2 years, equipment 1.5, furniture 2). */
+export const DEFAULT_LIFE_MONTHS: Record<string, number> = { "1510": 24, "1520": 18, "1530": 18, "1540": 24 };

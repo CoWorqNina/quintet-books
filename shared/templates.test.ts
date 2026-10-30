@@ -13,6 +13,8 @@ const parties = [
   party("recSup", "Davao Poultry", "Supplier"),
   party("recNew", "New Supplier Co", "Supplier", false),
   party("recAna", "Ana", "Employee"),
+  party("recUB", "Union Bank", "Lender"),
+  party("recKai", "Kai Denila", "Owner"),
 ];
 export const testCtx = (over: Partial<TemplateContext> = {}): TemplateContext => ({
   book: "Store",
@@ -319,5 +321,76 @@ describe("payroll templates", () => {
       ["2135", 50000_00, 0],
       ["1140", 0, 50000_00],
     ]);
+  });
+});
+
+describe("assets, prepaids and loans", () => {
+  it("#29 asset purchase: part paid, rest to the supplier, and an asset record", () => {
+    const r = build(29, {
+      date: "2026-11-05", name: "Fryer", assetClass: "1520", tag: "GGC", cost: 45000, paidNow: 15000, paidFrom: "1140",
+      supplier: "recSup", inUseDate: "2026-11-06", receipt: photo,
+    });
+    expect(r.errors).toEqual([]);
+    expect(lines(r)).toEqual([
+      ["1520", 45000_00, 0],
+      ["1140", 0, 15000_00],
+      ["2100", 0, 30000_00],
+    ]);
+    expect(r.register).toMatchObject({ type: "asset", data: { accum_account_code: "1592", useful_life_months: 18, profit_center: "GGC", cost: 45000 } });
+    expect(build(29, { date: "2026-11-05", name: "x", assetClass: "1520", tag: "GGC", cost: 2000, paidNow: 2000, paidFrom: "1140", inUseDate: "2026-11-05", receipt: photo }).errors.join()).toMatch(/Small Item/);
+    expect(build(29, { date: "2026-11-05", name: "Reno", assetClass: "1510", tag: "GGC", cost: 9000, paidNow: 9000, paidFrom: "1140", inUseDate: "2026-11-05", receipt: photo }).register?.data.profit_center).toBe("Shared");
+  });
+
+  it("#31 prepaid spreads over the months covered", () => {
+    const r = build(31, { date: "2026-11-05", item: "Insurance", amount: 12000, start: "2026-11-01", end: "2027-10-31", paidFrom: "1140", proof: photo });
+    expect(r.errors).toEqual([]);
+    expect(lines(r)).toEqual([
+      ["1430", 12000_00, 0],
+      ["1140", 0, 12000_00],
+    ]);
+    expect(r.register).toMatchObject({ type: "spread", data: { months: 12, start_month: "2026-11-01", expense_account: "6823" } });
+    expect(build(31, { date: "2026-11-05", item: "x", amount: 5000, start: "2026-11-01", end: "2026-11-30", paidFrom: "1140", proof: photo }).errors.join()).toMatch(/one-month/);
+  });
+
+  it("#33 loan proceeds net of fees with the schedule from the lender's installment", () => {
+    const r = build(33, {
+      date: "2026-11-10", name: "UB loan", lender: "recUB", account: "2230", interestAccount: "7530", principal: 400000, fees: 2000,
+      receivedIn: "1140", months: 24, firstDue: "2026-12-10", basis: "installment", installment: 19386.67, proof: photo,
+    });
+    expect(r.errors).toEqual([]);
+    expect(lines(r)).toEqual([
+      ["1140", 398000_00, 0],
+      ["7160", 2000_00, 0],
+      ["2230", 0, 400000_00],
+    ]);
+    const inst = r.register!.data.installments as { principal: number; interest: number }[];
+    expect(inst).toHaveLength(24);
+    expect(Math.round(inst.reduce((s, i) => s + i.principal, 0) * 100)).toBe(400000_00);
+    const taken = testCtx({ loans: new Map([["1", { id: 1, name: "Old", accountCode: "2230", interestAccount: "7530", book: "Store", next: null }]]) });
+    expect(build(33, { date: "2026-11-10", name: "x", lender: "recUB", account: "2230", interestAccount: "7530", principal: 1000, receivedIn: "1140", months: 2, firstDue: "2026-12-10", basis: "none", proof: photo }, taken).errors.join()).toMatch(/already holds/);
+  });
+
+  it("#34 installment splits principal and interest, clearing accrued interest first", () => {
+    const loans = new Map([["7", { id: 7, name: "UB loan", accountCode: "2230", interestAccount: "7530", book: "Store" as Book, next: { id: 70, dueDate: "2026-12-10", principal: 14386.67, interest: 5000, accrued: 3000 } }]]);
+    const r = build(34, { date: "2026-12-10", loan: "7", paidFrom: "1140", reference: "UB-1" }, testCtx({ loans }));
+    expect(r.errors).toEqual([]);
+    expect(lines(r)).toEqual([
+      ["2230", 14386_67, 0],
+      ["2250", 3000_00, 0],
+      ["7530", 2000_00, 0],
+      ["1140", 0, 19386_67],
+    ]);
+    expect(r.entries[0].lines[1].party_id).toBe("loan:7");
+    expect(r.register).toEqual({ type: "loan_payment", data: { installment_id: 70 } });
+  });
+
+  it("#35 and #37 owner money in is a loan, money out an advance", () => {
+    const i = build(35, { date: "2026-11-03", owner: "recKai", amount: 50000, bank: "1140", reference: "x" });
+    expect(lines(i)).toEqual([
+      ["1140", 50000_00, 0],
+      ["2260", 0, 50000_00],
+    ]);
+    const o = build(37, { date: "2026-11-03", owner: "recKai", amount: 1000, bank: "1140", reference: "x" });
+    expect(o.entries[0].lines[0]).toMatchObject({ account_code: "1250", party_name: "Kai Denila" });
   });
 });

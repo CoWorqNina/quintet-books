@@ -28,14 +28,19 @@ entries.post("/", async (c) => {
   const values = cleanValues(template.fields, body.values ?? {});
   checkEntryDate(String(values.date ?? ""));
   const ctx = await templateContext(c.env, user, template, book, body.profitCenter);
-  const { entries: drafts, errors } = template.build(values, ctx);
+  const { entries: drafts, errors, register } = template.build(values, ctx);
   if (errors.length || !drafts.length) return c.json({ error: errors[0] ?? "Nothing to record.", errors }, 400);
 
-  const { data, error } = await serviceClient(c.env).rpc("create_entries", {
-    p_user: user.id,
-    p_entries: drafts.map((d) => ({ ...toDbEntry(d), form: { template: template.number, book, profitCenter: ctx.profitCenter, values } })),
-    p_submit: true,
-  });
+  const form = { template: template.number, book, profitCenter: ctx.profitCenter, values };
+  const p_entries = drafts.map((d) => ({ ...toDbEntry(d), form }));
+  const db = serviceClient(c.env);
+  if (register) {
+    // Asset, prepaid or loan entries create their schedule record in the same transaction.
+    const { data, error } = await db.rpc("create_entries_with_register", { p_user: user.id, p_entries, p_register: register });
+    dbError(error);
+    return c.json({ entryIds: data.entry_ids, registerId: data.register_id });
+  }
+  const { data, error } = await db.rpc("create_entries", { p_user: user.id, p_entries, p_submit: true });
   dbError(error);
   return c.json({ entryIds: data });
 });
