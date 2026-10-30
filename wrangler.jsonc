@@ -19,5 +19,7 @@
   // Secrets (set with `wrangler secret put` or in the Cloudflare dashboard, never committed):
   //   SUPABASE_SECRET_KEY  - Supabase secret key (sb_secret_...), server only
   //   AIRTABLE_TOKEN       - Airtable personal access token scoped to the GGC Books base
+  // Nightly ledger backup at 2:00 AM Manila time (18:00 UTC).
+  "triggers": { "crons": ["0 18 * * *"] },
   "observability": { "enabled": true }
 }

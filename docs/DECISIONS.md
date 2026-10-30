@@ -13,6 +13,15 @@ Accounting decisions are also recorded in the Airtable Judgment Log.
 | 2026-10-29 | **Journal data lives in Supabase Postgres**, not Airtable, to stay clear of Airtable's per-base record limit. Airtable gets a **new base each fiscal year** for setup data and trackers. | Nina |
 | 2026-10-29 | Section 13 has no open items; templates #41 and #42 are intentionally absent. | Nina |
 | 2026-10-30 | Users/roles and Periods live in Supabase with the ledger: approval and month-lock rules are checked inside the database in the same transaction as posting. | Build |
+| 2026-10-31 | All POS discounts go on the Daily Cash Sales entry as one line (encoder picks SC/PWD or Promo); card, GCash and platform sales are recorded at the POS net figure. | Nina |
+| 2026-10-31 | Refunds: each channel uses the POS net figure; refunds stay off the ledger. | Nina |
+| 2026-10-31 | Paid-outs from the drawer are tagged by the encoder: expense (#11), employee cash advance (#26) or unclassified (#39, Suspense until classified). One entry per paid-out so each keeps its own receipt. | Nina / Build |
+| 2026-10-31 | Food charges are split per employee on the daily report; the split must equal the POS food charges. | Nina |
+| 2026-10-31 | The Nest uses the same daily report from its own POS, posting to its own cash and clearing accounts (1156, 1157, 1184-1186). Its bank and GCash accounts are not set up yet, so Nest GCash sales, deposits and payouts are blocked until they are. | Nina / Build |
+| 2026-10-31 | Employees are kept in the Airtable Parties table (Type = Employee) so management can edit them anytime. | Nina |
+| 2026-10-31 | Petty cash on #1 moves by the difference needed to end at the counted next-day amount (e.g. Oct 29: ₱3,615 − ₱2,289 + ₱3,869 = ₱5,195). | Build |
+| 2026-10-31 | Payouts, deposits and transfers (#7-#10) are entered by Owner/Accountant only, as Section 4 lists only sales, purchases and petty cash for Supervisors and Staff. Easy to widen. | Build |
+| 2026-10-31 | Entries can't be dated before go-live (Nov 1, 2026) or in the future. | Build |
 | 2026-10-29 | 6550 Platform & Card Fees rolls up directly under Operating Expenses, not under Marketing (its code sits inside 6500–6599). | Build |
 
 ## Where the data lives

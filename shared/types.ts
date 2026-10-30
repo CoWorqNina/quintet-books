@@ -44,6 +44,15 @@ export interface Account {
   description: string | null;
 }
 
+export interface Party {
+  id: string; // Airtable record ID
+  name: string;
+  type: "Supplier" | "Employee" | "Owner" | "Lender" | "Platform" | "Other";
+  books: Book[];
+  profitCenter: "GGC" | "The Nest" | null;
+  active: boolean;
+}
+
 export interface Period {
   key: string;
   startDate: string;
@@ -53,4 +62,55 @@ export interface Period {
 
 export interface ApiError {
   error: string;
+}
+
+export interface JournalLine {
+  lineNo: number;
+  accountCode: string;
+  accountName: string;
+  profitCenter: ProfitCenter | null;
+  debit: number;
+  credit: number;
+  partyName: string | null;
+  quantity: number | null;
+  unit: string | null;
+  unitPrice: number | null;
+  memo: string | null;
+}
+
+export interface JournalEntry {
+  id: number;
+  kind: string;
+  transactionType: number | null;
+  templateName: string;
+  book: Book;
+  profitCenter: ProfitCenter | null;
+  entryDate: string;
+  status: "Draft" | "Submitted" | "Approved" | "Rejected" | "Cancelled";
+  description: string | null;
+  sourceDocument: string | null;
+  reason: string | null;
+  unsupported: boolean;
+  attachments: { path: string; name: string; type: string; size: number }[];
+  dailyReportId: number | null;
+  createdBy: string;
+  createdAt: string;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  rejectionReason: string | null;
+  totalDebit: number;
+  canBatchApprove: boolean;
+  lines: JournalLine[];
+}
+
+export interface DailyReportSummary {
+  id: number;
+  businessDate: string;
+  profitCenter: "GGC" | "The Nest";
+  status: "Active" | "Cancelled";
+  netSales: number;
+  createdBy: string;
+  createdAt: string;
+  entryStatuses: Record<string, number>;
+  attachments: { path: string; name: string; type: string; size: number }[];
 }

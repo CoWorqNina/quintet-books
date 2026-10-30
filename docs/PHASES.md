@@ -12,14 +12,19 @@ Each phase ends with something usable and tested before the next one starts.
   base ID configured per fiscal year; token stored only as a Worker secret
 - Server-side rate limiting/queueing for Airtable's 5 req/s per base
 
-## Phase 1 — Posting engine + daily entry (go-live critical)
-- Nightly ledger export (Supabase free tier has no backups)
-- Transaction Types + Template Lines tables; entries built only from templates
-- Entry lifecycle: Draft → Submitted → Approved / Rejected; no self-approval; batch approval for routine entries
-- Server checks: balanced, required fields, attachments, period not closed, role and profit-center rules
-- Audit log for every create/edit/approve/reverse/reopen
-- Templates #1–#11 (daily sales, payouts, deposits, transfers, petty cash) + Daily Reports screen
-- Account Period Balances updated on approval
+## Phase 1 — Daily entry and approvals (built; run `supabase/migrations/0002_daily_reports.sql`)
+- Daily cashier report: POS sales summary + handwritten cash report → #1, #2, #3, #4, #6, and
+  one #11 / #26 / #39 per paid-out, #10 for cash put into the drawer; live preview and checks
+- Standalone forms: #5 pop-up sales, #7 card payout, #8 Grab/Foodpanda payout, #9 deposit,
+  #10 transfer, #11 petty cash expense
+- Templates are code (`shared/templates.ts`, `shared/dailyReport.ts`), rebuilt and checked on
+  the server; reference copy in Airtable Transaction Types
+- Approval queue: routine entries in a daily batch, no-receipt entries one by one; reject with reason
+- Journal with lines, status, creator/approver and attachments, filtered by role
+- Receipts and photos in a private Supabase Storage bucket (shrunk in the browser)
+- Nightly ledger backup (2 AM Manila) to the private "backups" bucket; owners can download anytime
+- Not yet: editing a submitted entry in place (cancel and re-enter instead), reversals UI,
+  For Classification queue (Phase 2)
 
 ## Phase 2 — Remaining templates and setup screens
 - Templates #12–#40 and #43 (Opening Balances)

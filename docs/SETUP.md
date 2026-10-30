@@ -58,6 +58,15 @@ They can change their password with **Forgot password** on the sign-in screen.
 **Authentication → URL Configuration** → set **Site URL** to the Cloudflare URL from step 4,
 so password-reset emails link back to the app.
 
+## 6. Phase 1 additions
+
+1. Supabase → **SQL Editor** → paste all of `supabase/migrations/0002_daily_reports.sql` → **Run**.
+   It adds daily reports and creates two private storage buckets (`attachments`, `backups`).
+   Check under **Storage** that both buckets exist.
+2. Airtable → **Parties**: add each employee with **Type = Employee**, their **Books**
+   (Store/Commissary), **Profit Center** (GGC or The Nest) and tick **Active**. Untick Active
+   when someone leaves; they disappear from the app within a minute.
+
 ## Moving to a custom domain later
 
 Add the domain in the Worker → **Settings → Domains & Routes**, then update the Supabase

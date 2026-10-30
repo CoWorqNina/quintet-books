@@ -1,4 +1,4 @@
-import type { Account } from "../shared/types";
+import type { Account, Party } from "../shared/types";
 import type { Env } from "./env";
 
 // Airtable allows 5 requests per second per base and answers 429 when exceeded (then blocks
@@ -74,9 +74,9 @@ export async function listAll<F>(env: Env, table: string, params: Record<string,
 
 const cache = new Map<string, { at: number; value: unknown }>();
 
-async function cached<T>(key: string, load: () => Promise<T>): Promise<T> {
+async function cached<T>(key: string, load: () => Promise<T>, ttlMs = CACHE_TTL_MS): Promise<T> {
   const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.value as T;
+  if (hit && Date.now() - hit.at < ttlMs) return hit.value as T;
   const value = await load();
   cache.set(key, { at: Date.now(), value });
   return value;
@@ -131,4 +131,36 @@ export function getAccounts(env: Env): Promise<Account[]> {
     const records = await listAll<AccountFields>(env, TABLES.accounts);
     return records.map(toAccount).sort((a, b) => a.code.localeCompare(b.code));
   });
+}
+
+type PartyFields = Partial<{
+  Name: string;
+  Type: Party["type"];
+  Books: Party["books"];
+  "Profit Center": Party["profitCenter"];
+  Active: boolean;
+}>;
+
+export function toParty(record: AirtableRecord<PartyFields>): Party {
+  const f = record.fields;
+  return {
+    id: record.id,
+    name: (f.Name ?? "").trim(),
+    type: f.Type ?? "Other",
+    books: f.Books ?? [],
+    profitCenter: f["Profit Center"] ?? null,
+    active: f.Active ?? false,
+  };
+}
+
+// People change often, so the list is refreshed every minute.
+export function getParties(env: Env): Promise<Party[]> {
+  return cached(
+    `parties:${env.AIRTABLE_BASE_ID}`,
+    async () => {
+      const records = await listAll<PartyFields>(env, TABLES.parties);
+      return records.map(toParty).filter((p) => p.name).sort((a, b) => a.name.localeCompare(b.name));
+    },
+    60_000,
+  );
 }
