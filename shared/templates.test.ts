@@ -10,7 +10,7 @@ const build = (n: number, values: Record<string, unknown>, c = ctx) => getTempla
 
 describe("standalone templates", () => {
   it("#7 card payout: bank net, fees, clearing gross", () => {
-    const r = build(7, { date: "2026-11-03", gross: 11477, fees: 286.93, reference: "SB123" });
+    const r = build(7, { date: "2026-11-03", bank: "1140", gross: 11477, fees: 286.93, reference: "SB123" });
     expect(r.errors).toEqual([]);
     expect(isBalanced(r.entry!)).toBe(true);
     expect(r.entry!.lines.map((l) => [l.account_code, l.debitCents, l.creditCents])).toEqual([
@@ -21,7 +21,7 @@ describe("standalone templates", () => {
   });
 
   it("#8 platform payout splits commission, deductions and withholding tax", () => {
-    const r = build(8, { date: "2026-11-07", platform: "Grab", receivedIn: "bank", gross: 10000, commission: 2500, deductions: 100, withholding: 50, reference: "W45", proof: photo });
+    const r = build(8, { date: "2026-11-07", platform: "Grab", receivedIn: "1140", gross: 10000, commission: 2500, deductions: 100, withholding: 50, reference: "W45", proof: photo });
     expect(r.errors).toEqual([]);
     expect(isBalanced(r.entry!)).toBe(true);
     expect(r.entry!.lines.find((l) => l.account_code === "1140")!.debitCents).toBe(7350_00);
@@ -29,12 +29,12 @@ describe("standalone templates", () => {
   });
 
   it("#8 needs the weekly statement", () => {
-    const r = build(8, { date: "2026-11-07", platform: "Grab", receivedIn: "bank", gross: 100, reference: "x" });
+    const r = build(8, { date: "2026-11-07", platform: "Grab", receivedIn: "1140", gross: 100, reference: "x" });
     expect(r.errors).toContain("Weekly platform statement is required.");
   });
 
   it("#9 deposit and #10 transfer", () => {
-    expect(isBalanced(build(9, { date: "2026-11-03", amount: 18000, reference: "DS1", proof: photo }).entry!)).toBe(true);
+    expect(isBalanced(build(9, { date: "2026-11-03", bank: "1140", amount: 18000, reference: "DS1", proof: photo }).entry!)).toBe(true);
     const t = build(10, { date: "2026-11-03", from: "1110", to: "1110", amount: 5, fromReference: "a", toReference: "b" });
     expect(t.errors).toContain("Sending and receiving accounts must differ.");
   });
@@ -57,8 +57,15 @@ describe("standalone templates", () => {
     );
   });
 
-  it("The Nest's bank-based templates wait for its bank account", () => {
-    const r = build(9, { date: "2026-11-03", amount: 1, reference: "x", proof: photo }, { ...ctx, profitCenter: "The Nest" });
-    expect(r.errors).toContain("The Nest's bank account is not set up yet.");
+  it("deposits go to any bank or e-wallet: The Nest's cash into GoTyme", () => {
+    const r = build(9, { date: "2026-11-03", bank: "1170", amount: 5000, reference: "x", proof: photo }, { ...ctx, profitCenter: "The Nest" });
+    expect(r.errors).toEqual([]);
+    expect(r.entry!.lines.map((l) => [l.account_code, l.debitCents, l.creditCents])).toEqual([
+      ["1170", 5000_00, 0],
+      ["1156", 0, 5000_00],
+    ]);
+    expect(build(9, { date: "2026-11-03", bank: "1110", amount: 1, reference: "x", proof: photo }).errors).toContain(
+      "Deposited to: choose a bank or e-wallet account.",
+    );
   });
 });

@@ -17,7 +17,8 @@ Accounting decisions are also recorded in the Airtable Judgment Log.
 | 2026-10-31 | Refunds: each channel uses the POS net figure; refunds stay off the ledger. | Nina |
 | 2026-10-31 | Paid-outs from the drawer are tagged by the encoder: expense (#11), employee cash advance (#26) or unclassified (#39, Suspense until classified). One entry per paid-out so each keeps its own receipt. | Nina / Build |
 | 2026-10-31 | Food charges are split per employee on the daily report; the split must equal the POS food charges. | Nina |
-| 2026-10-31 | The Nest uses the same daily report from its own POS, posting to its own cash, GCash and clearing accounts (1156, 1157, 1158, 1184-1186). 1158 E-Wallet – GCash – The Nest was added. The Nest has no bank account yet, so Nest bank deposits and bank payouts are blocked until one is set up. | Nina / Build |
+| 2026-10-31 | The Nest uses the same daily report from its own POS, posting to its own cash, GCash and clearing accounts (1156, 1157, 1158, 1184-1186). 1158 E-Wallet – GCash – The Nest was added. | Nina / Build |
+| 2026-10-31 | Banks are a free choice: deposits (#9), card and platform payouts (#7, #8) and transfers (#10) can go to any active bank or e-wallet, since there is one consolidated Balance Sheet (e.g. The Nest usually deposits to GoTyme 1170). | Nina |
 | 2026-10-31 | Employees are kept in the Airtable Parties table (Type = Employee) so management can edit them anytime. | Nina |
 | 2026-10-31 | Petty cash on #1 moves by the difference needed to end at the counted next-day amount (e.g. Oct 29: ₱3,615 − ₱2,289 + ₱3,869 = ₱5,195). | Build |
 | 2026-10-31 | Payouts and transfers (#7, #8, #10) are entered by Owner/Accountant only. Cash deposits (#9) can also be entered by Supervisors. | Nina / Build |

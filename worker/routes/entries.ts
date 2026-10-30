@@ -1,7 +1,7 @@
 import { Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { toDbEntry } from "../../shared/entries";
-import { fieldsFor, getTemplate, type Values } from "../../shared/templates";
+import { getTemplate, type Values } from "../../shared/templates";
 import type { JournalEntry } from "../../shared/types";
 import { checkEntryDate, checkProfitCenter, isOwner, scopeQuery, seesEverything } from "../access";
 import { getAccounts } from "../airtable";
@@ -23,7 +23,7 @@ entries.post("/", async (c) => {
   checkProfitCenter(user, body.profitCenter);
 
   const values: Values = { ...body.values };
-  for (const f of fieldsFor(template, body.profitCenter)) {
+  for (const f of template.fields) {
     if (f.type === "attachment") values[f.name] = cleanAttachments(values[f.name] ? [values[f.name]] : [])[0] ?? null;
   }
   checkEntryDate(String(values.date ?? ""));

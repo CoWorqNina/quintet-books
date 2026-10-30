@@ -574,5 +574,23 @@
   "isCashAccount": false,
   "active": true,
   "description": null
+ },
+ {
+  "id": "rec1170",
+  "code": "1170",
+  "name": "Cash in Bank – GoTyme",
+  "type": "Asset",
+  "normalBalance": "Dr",
+  "book": "Store",
+  "profitCenterRule": "n/a",
+  "subLedger": null,
+  "cashFlowGroup": "Cash",
+  "statement": "Balance Sheet",
+  "statementLine": "Cash & Cash Equivalents",
+  "parentCode": "1100",
+  "isHeader": false,
+  "isCashAccount": true,
+  "active": true,
+  "description": null
  }
 ]

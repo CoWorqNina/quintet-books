@@ -1,14 +1,14 @@
 import type { Account, ProfitCenter } from "./types";
 
 // Fixed accounts the Section 7 templates post to, per profit center. The Nest keeps its own
-// cash, GCash and clearing accounts; it has no bank account of its own yet (1159 is reserved).
+// cash, GCash and clearing accounts. Banks are chosen freely when money is deposited or paid out
+// (one consolidated Balance Sheet), so they are not fixed here.
 export const CASH_ACCOUNTS: Record<
   "GGC" | "The Nest",
   {
     forDeposit: string;
     pettyCash: string;
     gcash: string | null;
-    bank: string | null;
     cardClearing: string;
     grabClearing: string;
     foodpandaClearing: string;
@@ -18,7 +18,6 @@ export const CASH_ACCOUNTS: Record<
     forDeposit: "1110",
     pettyCash: "1120",
     gcash: "1150",
-    bank: "1140",
     cardClearing: "1181",
     grabClearing: "1182",
     foodpandaClearing: "1183",
@@ -27,7 +26,6 @@ export const CASH_ACCOUNTS: Record<
     forDeposit: "1156",
     pettyCash: "1157",
     gcash: "1158",
-    bank: null,
     cardClearing: "1184",
     grabClearing: "1185",
     foodpandaClearing: "1186",
@@ -95,4 +93,17 @@ export function bookAllowed(a: Account, book: "Store" | "Commissary"): boolean {
 export function cashAccountsFor(pc: ProfitCenter) {
   if (pc === "Shared") throw new Error("Cash accounts belong to GGC or The Nest");
   return CASH_ACCOUNTS[pc];
+}
+
+/** Drawer cash; every other active cash account is a bank or e-wallet. */
+export const CASH_ON_HAND = new Set(["1110", "1120", "1156", "1157"]);
+
+/** Accounts money can be deposited into or paid out to: any active Store bank or e-wallet. */
+export function isBankAccount(a: Account | undefined): a is Account {
+  return !!a && a.active && !a.isHeader && a.isCashAccount && !CASH_ON_HAND.has(a.code) && bookAllowed(a, "Store");
+}
+
+/** Any active Store cash account, on hand or in a bank (for transfers between own accounts). */
+export function isStoreCashAccount(a: Account | undefined): a is Account {
+  return !!a && a.active && !a.isHeader && a.isCashAccount && bookAllowed(a, "Store");
 }

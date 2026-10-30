@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { cashAccountsFor, needsQuantity } from "../../shared/accounts";
+import { cashAccountsFor, isBankAccount, needsQuantity } from "../../shared/accounts";
 import { buildDailyReport, type DailyReportInput, NO_RECEIPT_LIMIT_CENTS, type PaidOut } from "../../shared/dailyReport";
 import type { Attachment } from "../../shared/entries";
 import { formatPeso, toCents } from "../../shared/money";
@@ -306,9 +306,12 @@ export default function DailyReport({ user }: { user: AppUser }) {
                   onChange={(e) => setCashIns(cashIns.map((c, j) => (j === i ? { ...c, sourceAccount: e.target.value } : c)))}
                 >
                   <option value="">Choose…</option>
-                  <option value={cash.forDeposit}>Cash for deposit</option>
-                  {cash.bank && <option value={cash.bank}>Bank</option>}
-                  {cash.gcash && <option value={cash.gcash}>GCash</option>}
+                  <option value={cash.forDeposit}>{cash.forDeposit} Cash for deposit</option>
+                  {accountList.filter(isBankAccount).map((a) => (
+                    <option key={a.code} value={a.code}>
+                      {a.code} {a.name}
+                    </option>
+                  ))}
                 </select>
               </label>
               <label>

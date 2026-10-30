@@ -2,13 +2,32 @@
 // the fields the encoder fills in and builds the entry from them; the encoder never picks
 // debits or credits. The daily report (dailyReport.ts) covers #1-#4, #6 and drawer paid-outs.
 
-import { ACCOUNTS, bookAllowed, cashAccountsFor, isExpenseAccount, needsQuantity, profitCenterAllowed } from "./accounts";
+import {
+  ACCOUNTS,
+  bookAllowed,
+  cashAccountsFor,
+  isBankAccount,
+  isExpenseAccount,
+  isStoreCashAccount,
+  needsQuantity,
+  profitCenterAllowed,
+} from "./accounts";
 import { NO_RECEIPT_LIMIT_CENTS } from "./dailyReport";
 import { credit, debit, type Attachment, type EntryDraft, finishEntry } from "./entries";
 import { formatPeso, toCents } from "./money";
 import type { Account, Role } from "./types";
 
-export type FieldType = "date" | "money" | "text" | "select" | "expenseAccount" | "attachment" | "number" | "checkbox";
+export type FieldType =
+  | "date"
+  | "money"
+  | "text"
+  | "select"
+  | "expenseAccount"
+  | "bankAccount" // any bank or e-wallet
+  | "cashAccount" // any cash account, on hand or in a bank
+  | "attachment"
+  | "number"
+  | "checkbox";
 
 export interface Field {
   name: string;
@@ -61,6 +80,10 @@ function requireFields(fields: Field[], values: Values, errors: string[]) {
 }
 
 const dateField: Field = { name: "date", label: "Date", type: "date", required: true };
+
+function checkBank(code: string, label: string, ctx: TemplateContext, errors: string[]) {
+  if (code && !isBankAccount(ctx.accounts.get(code))) errors.push(`${label}: choose a bank or e-wallet account.`);
+}
 
 const popUpSales: Template = {
   number: 5,
@@ -134,6 +157,7 @@ const cardPayout: Template = {
   batchApproval: true,
   fields: [
     dateField,
+    { name: "bank", label: "Received in", type: "bankAccount", required: true },
     { name: "gross", label: "Card sales cleared (gross)", type: "money", required: true },
     { name: "fees", label: "Card fees deducted", type: "money" },
     { name: "reference", label: "Bank credit reference", type: "text", required: true },
@@ -143,7 +167,7 @@ const cardPayout: Template = {
     const errors: string[] = [];
     requireFields(this.fields, v, errors);
     const cash = cashAccountsFor(ctx.profitCenter);
-    if (!cash.bank) errors.push(`${ctx.profitCenter}'s bank account is not set up yet.`);
+    checkBank(str(v.bank), "Received in", ctx, errors);
     const gross = cents(v.gross);
     const fees = cents(v.fees);
     if (fees > gross) errors.push("Fees can't be more than the gross amount.");
@@ -159,7 +183,7 @@ const cardPayout: Template = {
         source_document: str(v.reference),
         attachments: att(v.proof) ? [att(v.proof)!] : [],
         lines: [
-          debit(cash.bank ?? "", gross - fees, "7.bank"),
+          debit(str(v.bank), gross - fees, "7.bank"),
           debit(ACCOUNTS.cardFees, fees, "7.fees", { profit_center: ctx.profitCenter }),
           credit(cash.cardClearing, gross, "7.clearing"),
         ],
@@ -185,16 +209,7 @@ const platformPayout: Template = {
         { value: "Foodpanda", label: "Foodpanda" },
       ],
     },
-    {
-      name: "receivedIn",
-      label: "Received in",
-      type: "select",
-      required: true,
-      options: [
-        { value: "bank", label: "Bank" },
-        { value: "gcash", label: "GCash" },
-      ],
-    },
+    { name: "receivedIn", label: "Received in", type: "bankAccount", required: true },
     { name: "gross", label: "Sales cleared (gross, at menu price)", type: "money", required: true },
     { name: "commission", label: "Commission", type: "money" },
     { name: "deductions", label: "Penalties and adjustments", type: "money" },
@@ -207,8 +222,8 @@ const platformPayout: Template = {
     requireFields(this.fields, v, errors);
     const cash = cashAccountsFor(ctx.profitCenter);
     const grab = str(v.platform) === "Grab";
-    const receiving = str(v.receivedIn) === "gcash" ? cash.gcash : cash.bank;
-    if (!receiving) errors.push(`${ctx.profitCenter}'s ${str(v.receivedIn) === "gcash" ? "GCash" : "bank"} account is not set up yet.`);
+    const receiving = str(v.receivedIn);
+    checkBank(receiving, "Received in", ctx, errors);
     const gross = cents(v.gross);
     const commission = cents(v.commission);
     const deductions = cents(v.deductions);
@@ -228,7 +243,7 @@ const platformPayout: Template = {
         source_document: str(v.reference),
         attachments: att(v.proof) ? [att(v.proof)!] : [],
         lines: [
-          debit(receiving ?? "", net, "8.received"),
+          debit(receiving, net, "8.received"),
           debit(grab ? ACCOUNTS.commissionGrab : ACCOUNTS.commissionFoodpanda, commission, "8.commission", pc),
           debit(grab ? ACCOUNTS.deductionsGrab : ACCOUNTS.deductionsFoodpanda, deductions, "8.deductions", pc),
           debit(ACCOUNTS.creditableWithholdingTax, withholding, "8.cwt", { party_name: str(v.platform) }),
@@ -246,6 +261,7 @@ const cashDeposit: Template = {
   batchApproval: true,
   fields: [
     dateField,
+    { name: "bank", label: "Deposited to", type: "bankAccount", required: true },
     { name: "amount", label: "Amount deposited", type: "money", required: true },
     { name: "reference", label: "Deposit slip number", type: "text", required: true },
     { name: "proof", label: "Deposit slip photo", type: "attachment", required: true },
@@ -254,7 +270,7 @@ const cashDeposit: Template = {
     const errors: string[] = [];
     requireFields(this.fields, v, errors);
     const cash = cashAccountsFor(ctx.profitCenter);
-    if (!cash.bank) errors.push(`${ctx.profitCenter}'s bank account is not set up yet.`);
+    checkBank(str(v.bank), "Deposited to", ctx, errors);
     const amount = cents(v.amount);
     return {
       errors,
@@ -267,22 +283,11 @@ const cashDeposit: Template = {
         description: `Cash deposit ${formatPeso(amount)}`,
         source_document: str(v.reference),
         attachments: att(v.proof) ? [att(v.proof)!] : [],
-        lines: [debit(cash.bank ?? "", amount, "9.bank"), credit(cash.forDeposit, amount, "9.cash")],
+        lines: [debit(str(v.bank), amount, "9.bank"), credit(cash.forDeposit, amount, "9.cash")],
       }),
     };
   },
 };
-
-function transferOptions(pc: "GGC" | "The Nest") {
-  const cash = cashAccountsFor(pc);
-  return [
-    { value: cash.forDeposit, label: `${cash.forDeposit} Cash on Hand – For Deposit` },
-    { value: cash.pettyCash, label: `${cash.pettyCash} Petty Cash – Cashier` },
-    ...(cash.bank ? [{ value: cash.bank, label: `${cash.bank} Bank` }] : []),
-    ...(cash.gcash ? [{ value: cash.gcash, label: `${cash.gcash} GCash` }] : []),
-    ...(pc === "GGC" ? [{ value: "1170", label: "1170 Cash in Bank – GoTyme" }] : []),
-  ];
-}
 
 const transfer: Template = {
   number: 10,
@@ -291,8 +296,8 @@ const transfer: Template = {
   batchApproval: true,
   fields: [
     dateField,
-    { name: "from", label: "From (sending account)", type: "select", required: true, options: [] },
-    { name: "to", label: "To (receiving account)", type: "select", required: true, options: [] },
+    { name: "from", label: "From (sending account)", type: "cashAccount", required: true },
+    { name: "to", label: "To (receiving account)", type: "cashAccount", required: true },
     { name: "amount", label: "Amount", type: "money", required: true },
     { name: "fromReference", label: "Sending reference", type: "text", required: true },
     { name: "toReference", label: "Receiving reference", type: "text", required: true },
@@ -301,11 +306,10 @@ const transfer: Template = {
   build(v, ctx) {
     const errors: string[] = [];
     requireFields(this.fields, v, errors);
-    const allowed = transferOptions(ctx.profitCenter).map((o) => o.value);
     const from = str(v.from);
     const to = str(v.to);
-    if (from && !allowed.includes(from)) errors.push("Choose a valid sending account.");
-    if (to && !allowed.includes(to)) errors.push("Choose a valid receiving account.");
+    if (from && !isStoreCashAccount(ctx.accounts.get(from))) errors.push("Choose a valid sending account.");
+    if (to && !isStoreCashAccount(ctx.accounts.get(to))) errors.push("Choose a valid receiving account.");
     if (from && from === to) errors.push("Sending and receiving accounts must differ.");
     const amount = cents(v.amount);
     return {
@@ -398,12 +402,6 @@ export const TEMPLATES: Template[] = [popUpSales, cardPayout, platformPayout, ca
 
 export function getTemplate(n: number): Template | undefined {
   return TEMPLATES.find((t) => t.number === n);
-}
-
-/** Fields with options that depend on the profit center (transfer accounts). */
-export function fieldsFor(t: Template, pc: "GGC" | "The Nest"): Field[] {
-  if (t.number !== 10) return t.fields;
-  return t.fields.map((f) => (f.name === "from" || f.name === "to" ? { ...f, options: transferOptions(pc) } : f));
 }
 
 /** Template numbers the daily report creates, with their names (for the journal and approvals). */

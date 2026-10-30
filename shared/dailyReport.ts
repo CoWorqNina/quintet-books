@@ -3,7 +3,7 @@
 // #11 petty cash expenses, #26 cash advances, #39 unclassified paid-outs and #10 cash-ins.
 // Used by the screen for a live preview and by the server, which rebuilds and checks it.
 
-import { ACCOUNTS, bookAllowed, cashAccountsFor, isExpenseAccount, needsQuantity, profitCenterAllowed } from "./accounts";
+import { ACCOUNTS, bookAllowed, cashAccountsFor, isBankAccount, isExpenseAccount, needsQuantity, profitCenterAllowed } from "./accounts";
 import { credit, debit, type Attachment, type EntryDraft, finishEntry, signed } from "./entries";
 import { formatPeso, sumCents, toCents } from "./money";
 import type { Account } from "./types";
@@ -29,7 +29,7 @@ export interface PaidOut {
 
 export interface CashIn {
   amount: number;
-  sourceAccount: string; // e.g. Cash on Hand – For Deposit or a bank account
+  sourceAccount: string; // Cash on Hand – For Deposit or any bank / e-wallet
   reference: string;
 }
 
@@ -319,11 +319,12 @@ export function buildDailyReport(
   });
 
   // #10 Cash put into the drawer from another of our own accounts
-  const allowedSources = [cash.forDeposit, cash.bank, cash.gcash].filter(Boolean);
   input.cashIns.forEach((ci, i) => {
     const amount = c(ci.amount);
     if (!(amount > 0)) errors.push(`Cash in ${i + 1}: enter an amount.`);
-    if (!allowedSources.includes(ci.sourceAccount)) errors.push(`Cash in ${i + 1}: choose where the cash came from.`);
+    if (ci.sourceAccount !== cash.forDeposit && !isBankAccount(accounts.get(ci.sourceAccount))) {
+      errors.push(`Cash in ${i + 1}: choose where the cash came from.`);
+    }
     if (!ci.reference?.trim()) errors.push(`Cash in ${i + 1}: add a reference.`);
     entries.push(
       finishEntry({

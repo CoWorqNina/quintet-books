@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import type { Attachment } from "../../shared/entries";
-import { fieldsFor, TEMPLATES, type Values } from "../../shared/templates";
+import { isBankAccount, isStoreCashAccount } from "../../shared/accounts";
+import { TEMPLATES, type Values } from "../../shared/templates";
 import type { AppUser } from "../../shared/types";
 import { GO_LIVE_DATE } from "../../shared/config";
 import { EntryPreview } from "../components/EntryPreview";
@@ -24,7 +25,7 @@ export default function NewEntry({ user }: { user: AppUser }) {
   const template = templates.find((t) => t.number === number);
   if (!template) return <p>Your role has no entry forms here.</p>;
 
-  const fields = fieldsFor(template, profitCenter).filter(
+  const fields = template.fields.filter(
     (f) => !f.showIf || f.showIf.values.includes(String(values[f.showIf.field] ?? "")),
   );
   const built = accountList.length ? template.build(values, { profitCenter, accounts }) : null;
@@ -96,6 +97,21 @@ export default function NewEntry({ user }: { user: AppUser }) {
                 </select>
               );
               break;
+            case "bankAccount":
+            case "cashAccount": {
+              const ok = f.type === "bankAccount" ? isBankAccount : isStoreCashAccount;
+              control = (
+                <select value={String(v ?? "")} onChange={(e) => set(f.name, e.target.value)}>
+                  <option value="">Choose account…</option>
+                  {accountList.filter(ok).map((a) => (
+                    <option key={a.code} value={a.code}>
+                      {a.code} {a.name}
+                    </option>
+                  ))}
+                </select>
+              );
+              break;
+            }
             case "expenseAccount":
               control = (
                 <ExpenseAccountSelect accounts={accountList} profitCenter={profitCenter} value={v as string} onChange={(x) => set(f.name, x)} />
