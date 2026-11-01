@@ -100,6 +100,8 @@ so password-reset emails link back to the app.
 
 1. Supabase → **SQL Editor** → run `supabase/migrations/0007_loans_straight_line.sql`.
 2. Then run `supabase/data/golive_loans.sql` (UB and RCBC go-live records).
+3. Run `supabase/migrations/0008_loan_interest_before_go_live.sql`, then
+   `supabase/data/fix_rcbc_october.sql` (RCBC installment 6 unpaid at go-live).
 
 ## Moving to a custom domain later
 

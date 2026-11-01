@@ -150,7 +150,7 @@ export async function runChecks(db: SupabaseClient, period: string, accounts: Ma
   );
   add("loan-interest", "Interest recorded for every installment due this month", unrecorded.length ? [...unrecorded, "Generate Month-end → Adjusting entries → Interest accrual"] : []);
   const accruedUnpaid = liveLoans.reduce(
-    (s, l) => s + (l.installments ?? []).filter((i) => i.interest_entry_id && !i.paid && i.due_date <= asOf).reduce((t, i) => t + toCents(Number(i.interest)), 0),
+    (s, l) => s + (l.installments ?? []).filter((i) => (i.interest_entry_id || i.interest_before_go_live) && !i.paid && i.due_date <= asOf).reduce((t, i) => t + toCents(Number(i.interest)), 0),
     0,
   );
   const ledger2250 = -BOOKS.reduce((s, b) => s + balanceOf(totals, "2250", b), 0);

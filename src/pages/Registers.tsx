@@ -66,6 +66,7 @@ interface LoanRowView {
   interest_recorded: boolean;
   interest_entry_id: number | null;
   interest_status: string | null;
+  interest_before_go_live: boolean;
 }
 
 /** Paid / Due / Overdue, as of today. */
@@ -273,7 +274,7 @@ export default function Registers({ user }: { user: AppUser }) {
         const paid = inst.filter((i) => i.paid);
         const balance = Number(l.principal) - paid.reduce((s, i) => s + Number(i.principal), 0);
         const totalInterest = inst.reduce((s, i) => s + Number(i.interest), 0);
-        const accrued = inst.filter((i) => i.interest_entry_id && !i.paid).reduce((s, i) => s + Number(i.interest), 0);
+        const accrued = inst.filter((i) => (i.interest_entry_id || i.interest_before_go_live) && !i.paid).reduce((s, i) => s + Number(i.interest), 0);
         const overdue = inst.filter((i) => rowStatus(i) === "Overdue").length;
         return (
           <details key={l.id} className="card">
@@ -313,6 +314,8 @@ export default function Registers({ user }: { user: AppUser }) {
                         <td>
                           {i.paid_before_go_live ? (
                             <span className="muted">Before go-live</span>
+                          ) : i.interest_before_go_live ? (
+                            <span className="muted">Accrued before go-live</span>
                           ) : i.interest_entry_id ? (
                             <Link to={`/journal?entry=${i.interest_entry_id}`}>Accrued #{i.interest_entry_id}</Link>
                           ) : i.interest_recorded ? (
@@ -584,6 +587,8 @@ function GoLiveForm({ onDone }: { onDone: () => void }) {
         principal: fromCents(i.principalCents),
         interest: fromCents(i.interestCents),
         paid_before_go_live: i.seq <= paidBefore,
+        // Unpaid but due before go-live: its interest is in the opening 2250 balance.
+        interest_before_go_live: i.seq > paidBefore && i.dueDate < "2026-11-01",
       })),
     };
   }

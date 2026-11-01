@@ -71,6 +71,8 @@ export interface LoanRow {
   interest_recorded: boolean;
   interest_entry_id?: number | null;
   interest_status?: string | null;
+  /** Unpaid at go-live with its interest in the opening balances (2250). */
+  interest_before_go_live?: boolean;
   paid_entry_id?: number | null;
 }
 
