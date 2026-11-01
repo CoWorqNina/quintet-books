@@ -2,12 +2,13 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { GO_LIVE_DATE } from "../../shared/config";
 import type { Attachment } from "../../shared/entries";
-import { buildManualEntry, type ManualInput, type ManualLine, OPENING_DATE } from "../../shared/manual";
+import { ACCRUED_INTEREST, buildManualEntry, loanParties, type ManualInput, type ManualLine, OPENING_DATE } from "../../shared/manual";
+import type { LoanInfo } from "../../shared/templates";
 import type { AppUser, Book } from "../../shared/types";
 import { EntryPreview } from "../components/EntryPreview";
 import { AttachmentPicker } from "../components/inputs";
 import { api } from "../lib/api";
-import { todayManila, useAccounts, useParties } from "../lib/data";
+import { todayManila, useAccounts, useLoad, useParties } from "../lib/data";
 
 const emptyLine = (): ManualLine => ({ account: "", debit: "", credit: "", profitCenter: "", party: "", memo: "" });
 
@@ -15,7 +16,9 @@ const emptyLine = (): ManualLine => ({ account: "", debit: "", credit: "", profi
 export default function ManualEntry({ user, opening = false }: { user: AppUser; opening?: boolean }) {
   const navigate = useNavigate();
   const accountList = useAccounts();
-  const parties = useParties();
+  const people = useParties();
+  const loans = loanParties(useLoad<LoanInfo[]>("/loans").data ?? []);
+  const parties = useMemo(() => [...people, ...loans], [people, loans.length]); // eslint-disable-line react-hooks/exhaustive-deps
   const [kind, setKind] = useState<ManualInput["kind"]>(opening ? "Opening" : "Special");
   const [book, setBook] = useState<Book>(user.books[0] ?? "Store");
   const [date, setDate] = useState(opening ? OPENING_DATE : todayManila());
@@ -139,10 +142,10 @@ export default function ManualEntry({ user, opening = false }: { user: AppUser; 
                     </td>
                     <td>
                       <select value={l.party ?? ""} onChange={(e) => set(i, { party: e.target.value })}>
-                        <option value="" />
-                        {parties.map((p) => (
+                        <option value="">{l.account === ACCRUED_INTEREST ? "Which loan?" : ""}</option>
+                        {(l.account === ACCRUED_INTEREST ? loans : people).map((p) => (
                           <option key={p.id} value={p.id}>
-                            {p.name} ({p.type})
+                            {l.account === ACCRUED_INTEREST ? p.name : `${p.name} (${p.type})`}
                           </option>
                         ))}
                       </select>

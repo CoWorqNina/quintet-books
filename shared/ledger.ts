@@ -1,7 +1,7 @@
 // Calculations behind the ledger views: trial balance from account totals, balances per party,
 // and first-in-first-out aging of open items (supplier bills, clearing balances).
 
-import type { Account, Book } from "./types";
+import type { Account, Book, ProfitCenter } from "./types";
 import { toCents } from "./money";
 
 export const RETAINED_EARNINGS = "3300";
@@ -17,6 +17,7 @@ export type BookView = Book | "Combined";
 export interface AccountTotal {
   book: Book;
   account_code: string;
+  profit_center?: ProfitCenter | null;
   prior_debit: number | string;
   prior_credit: number | string;
   year_debit: number | string;

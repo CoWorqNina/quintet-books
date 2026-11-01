@@ -21,6 +21,7 @@ import { seesEverything, todayManila } from "../access";
 import { getAccounts } from "../airtable";
 import { badRequest, dbError, forbidden } from "../db";
 import type { AppContext } from "../env";
+import { loadRegisters } from "../monthEnd";
 import { serviceClient } from "../supabase";
 
 // Read-only accounting cycle views and sub-ledgers (Owner and Accountant).
@@ -154,6 +155,36 @@ ledger.get("/sub/:kind", async (c) => {
       balanceCents: balance(ls, "debit"),
     }));
     return c.json({ asOf, accounts: codes.map((code) => ({ code, name: name(code) })), controlCents: balance(lines, "debit"), people: people.filter((p) => p.balanceCents || Object.values(p.byAccount).some(Boolean)).sort((a, b) => a.party.localeCompare(b.party)) });
+  }
+
+  if (kind === "loans") {
+    // Principal sits in each loan's own Loans Payable account; interest owed sits in 2250
+    // Accrued Interest Payable, tagged to its loan ("loan:<id>"). Shown side by side, never mixed.
+    const registers = await loadRegisters(serviceClient(c.env));
+    const loans = (registers.loans ?? []).filter((l) => l.in_force && (!book || l.book === book));
+    const lines = await partyLines(c.env, ["2250", ...new Set(loans.map((l) => l.account_code))], asOf, book);
+    const interest = lines.filter((l) => l.account_code === "2250");
+    const rows = loans.map((l) => {
+      const paid = (l.installments ?? []).filter((i) => i.paid_entry_id);
+      return {
+        id: l.id,
+        name: l.name,
+        lender: (l as { lender_name?: string }).lender_name ?? "",
+        accountCode: l.account_code,
+        principalCents: balance(lines.filter((x) => x.account_code === l.account_code), "credit"),
+        trackerCents: toCents(Number(l.principal)) - paid.reduce((s, i) => s + toCents(Number(i.principal)), 0),
+        interestPayableCents: balance(interest.filter((x) => x.party_id === `loan:${l.id}`), "credit"),
+        approved: !l.entry_id || l.entry_status === "Approved",
+      };
+    });
+    const untagged = interest.filter((x) => !x.party_id?.startsWith("loan:"));
+    return c.json({
+      asOf,
+      loans: rows,
+      untaggedInterestCents: balance(untagged, "credit"),
+      untaggedEntries: [...new Set(untagged.map((x) => x.entry_id))],
+      interestControlCents: balance(interest, "credit"),
+    });
   }
 
   if (kind === "owners") {

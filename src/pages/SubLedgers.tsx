@@ -16,6 +16,7 @@ interface OpenItem {
 const KINDS = [
   { key: "ap", label: "Accounts payable" },
   { key: "employees", label: "Employee receivables" },
+  { key: "loans", label: "Loans & interest payable" },
   { key: "owners", label: "Owner loans & advances" },
   { key: "reimbursements", label: "Reimbursements" },
   { key: "clearing", label: "Card / Grab / Foodpanda" },
@@ -47,7 +48,8 @@ export function SubLedgers() {
       {error && <p className="error">{error}</p>}
       {ready && kind === "ap" && "parties" in data && <Payables data={data} />}
       {ready && kind === "employees" && "people" in data && "accounts" in data && <Employees data={data} />}
-      {ready && kind === "owners" && "loans" in data && <Owners data={data} />}
+      {ready && kind === "loans" && "interestControlCents" in data && <Loans data={data} />}
+      {ready && kind === "owners" && "advances" in data && <Owners data={data} />}
       {ready && kind === "reimbursements" && "people" in data && !("accounts" in data) && <Reimbursements data={data} />}
       {ready && kind === "clearing" && "accounts" in data && "buckets" in data && <Clearing data={data} />}
     </>
@@ -226,6 +228,86 @@ function PartyTable({ title, rows, empty }: { title: string; rows: { party: stri
         </tfoot>
       </table>
     </div>
+  );
+}
+
+interface LoanRow {
+  id: number;
+  name: string;
+  lender: string;
+  accountCode: string;
+  principalCents: number;
+  trackerCents: number;
+  interestPayableCents: number;
+  approved: boolean;
+}
+
+function Loans({ data }: { data: { loans: LoanRow[]; untaggedInterestCents: number; untaggedEntries: number[]; interestControlCents: number } }) {
+  const totalPrincipal = data.loans.reduce((s, l) => s + l.principalCents, 0);
+  const totalInterest = data.loans.reduce((s, l) => s + l.interestPayableCents, 0) + data.untaggedInterestCents;
+  return (
+    <>
+      <p className="muted">
+        Principal stays in each loan's own Loans Payable account. Interest owed but not yet paid sits in 2250 Accrued Interest Payable, tagged to
+        its loan, and is cleared when the installment is paid.
+      </p>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Loan</th>
+              <th>Account</th>
+              <th className="num">Principal owed</th>
+              <th className="num">Loan Tracker</th>
+              <th className="num">Interest payable</th>
+              <th className="num">Total owed</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.loans.map((l) => (
+              <tr key={l.id}>
+                <td>
+                  {l.name}
+                  {l.lender && <span className="muted"> · {l.lender}</span>}
+                  {!l.approved && <span className="badge info">Waiting for approval</span>}
+                </td>
+                <td>{l.accountCode}</td>
+                <td className="num">{peso(l.principalCents)}</td>
+                <td className={`num ${l.trackerCents !== l.principalCents ? "error" : "muted"}`}>{peso(l.trackerCents)}</td>
+                <td className="num">{peso(l.interestPayableCents)}</td>
+                <td className="num">{peso(l.principalCents + l.interestPayableCents)}</td>
+              </tr>
+            ))}
+            {data.untaggedInterestCents !== 0 && (
+              <tr>
+                <td colSpan={4} className="error">
+                  Interest not tagged to a loan (entries {data.untaggedEntries.map((id) => `#${id}`).join(", ")}): correct these entries
+                </td>
+                <td className="num error">{peso(data.untaggedInterestCents)}</td>
+                <td />
+              </tr>
+            )}
+            {!data.loans.length && (
+              <tr>
+                <td colSpan={6} className="muted">
+                  No loans yet. Loans come from #33 Loan Proceeds or Registers → Add go-live record.
+                </td>
+              </tr>
+            )}
+          </tbody>
+          <tfoot>
+            <tr className="header-row">
+              <td colSpan={2}>Total</td>
+              <td className="num">{peso(totalPrincipal)}</td>
+              <td />
+              <td className="num">{peso(totalInterest)}</td>
+              <td className="num">{peso(totalPrincipal + totalInterest)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <ControlCheck controlCents={data.interestControlCents} totalCents={totalInterest - data.untaggedInterestCents} />
+    </>
   );
 }
 

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildClassification, buildManualEntry } from "./manual";
+import { buildClassification, buildManualEntry, loanParties } from "./manual";
 import testAccounts from "./test-accounts.json";
 import type { Account } from "./types";
 
@@ -35,6 +35,17 @@ describe("manual entries", () => {
     expect(r.errors.join()).toMatch(/balance sheet accounts only/);
     const ok = buildManualEntry({ ...base, kind: "Opening", date: "2026-10-31", lines: [{ account: "1110", debit: 1000 }, { account: "3100", credit: 1000 }] }, accounts, new Map());
     expect(ok.entry).toMatchObject({ kind: "Opening", transaction_type: 43 });
+  });
+});
+
+describe("accrued interest per loan", () => {
+  it("opening interest payable must name its loan", () => {
+    const input = { ...base, kind: "Opening" as const, date: "2026-10-31", lines: [{ account: "3100", debit: 2500 }, { account: "2250", credit: 2500 }] };
+    expect(buildManualEntry(input, accounts, new Map()).errors.join()).toMatch(/which loan|choose the loan/i);
+    const loans = new Map(loanParties([{ id: 7, name: "UB loan" }]).map((p) => [p.id, p]));
+    const ok = buildManualEntry({ ...input, lines: [input.lines[0], { ...input.lines[1], party: "loan:7" }] }, accounts, loans);
+    expect(ok.errors).toEqual([]);
+    expect(ok.entry!.lines[1]).toMatchObject({ party_id: "loan:7", party_name: "UB loan" });
   });
 });
 

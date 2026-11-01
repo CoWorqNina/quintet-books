@@ -85,6 +85,12 @@ so password-reset emails link back to the app.
    It adds read-only report functions (trial balance, general ledger, sub-ledgers). Run it
    **before** the Phase 3 code is deployed.
 
+## 9. Phase 4 additions
+
+1. Supabase → **SQL Editor** → paste all of `supabase/migrations/0005_month_end.sql` → **Run**.
+   It adds inventory counts, reconciliations and month-end helper functions. Run it **before**
+   the Phase 4 code is deployed.
+
 ## Moving to a custom domain later
 
 Add the domain in the Worker → **Settings → Domains & Routes**, then update the Supabase

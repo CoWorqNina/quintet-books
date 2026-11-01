@@ -2,7 +2,7 @@ import { type Context, Hono } from "hono";
 import { HTTPException } from "hono/http-exception";
 import { ACCOUNTS } from "../../shared/accounts";
 import { toDbEntry } from "../../shared/entries";
-import { buildClassification, buildManualEntry, type ClassifyLine, type ManualInput, OPENING_DATE } from "../../shared/manual";
+import { buildClassification, buildManualEntry, type ClassifyLine, loanParties, type ManualInput, OPENING_DATE } from "../../shared/manual";
 import { getTemplate, type Values } from "../../shared/templates";
 import type { AppUser, Book } from "../../shared/types";
 import { checkEntryDate, isOwner, seesEverything, todayManila } from "../access";
@@ -11,6 +11,7 @@ import { badRequest, dbError, forbidden } from "../db";
 import type { AppContext } from "../env";
 import { ENTRY_SELECT, getUserNames, isCorrectable, toJournalEntry } from "../journal";
 import { logJudgment } from "../judgment";
+import { getLoans } from "../registers";
 import { serviceClient } from "../supabase";
 import { templateContext } from "../templateContext";
 import { cleanAttachments } from "./attachments";
@@ -124,11 +125,11 @@ adjustments.post("/opening", async (c) => {
 
 async function saveManual(c: Context<AppContext>, user: AppUser, input: ManualInput) {
   if (input.book !== "Store" && input.book !== "Commissary") badRequest("Choose the Store or Commissary book.");
-  const [accounts, parties] = await Promise.all([getAccounts(c.env), getParties(c.env)]);
+  const [accounts, parties, loans] = await Promise.all([getAccounts(c.env), getParties(c.env), getLoans(serviceClient(c.env))]);
   const { entry, errors } = buildManualEntry(
     input,
     new Map(accounts.map((a) => [a.code, a])),
-    new Map(parties.map((p) => [p.id, p])),
+    new Map([...parties, ...loanParties(loans)].map((p) => [p.id, p])),
   );
   if (!entry) return c.json({ error: errors[0], errors }, 400);
   const { data, error } = await serviceClient(c.env).rpc("create_entries", { p_user: user.id, p_entries: [toDbEntry(entry)], p_submit: true });
