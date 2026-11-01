@@ -63,11 +63,14 @@ monthEndRoutes.post("/:period/adjustments", async (c) => {
   if (waiting) badRequest(`Entry #${waiting.id} is waiting for approval. Approve or cancel it first.`);
   const proposal = (await proposals(db, period, c.env)).find((p) => p.kind === kind && p.book === book);
   if (!proposal) badRequest("Nothing to generate.");
-  const { data, error } = await db.rpc("create_entries", {
-    p_user: user.id,
-    p_entries: [{ ...toDbEntry(proposal.entry), form: { generated: kind, period } }],
-    p_submit: true,
-  });
+  const p_entries = [{ ...toDbEntry(proposal.entry), form: { generated: kind, period } }];
+  if (proposal.register) {
+    // Interest accrual: the entry and the loan rows it books are saved together.
+    const { data, error } = await db.rpc("create_entries_with_register", { p_user: user.id, p_entries, p_register: proposal.register });
+    dbError(error);
+    return c.json({ entryIds: data.entry_ids });
+  }
+  const { data, error } = await db.rpc("create_entries", { p_user: user.id, p_entries, p_submit: true });
   dbError(error);
   return c.json({ entryIds: data });
 });

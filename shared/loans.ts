@@ -1,5 +1,11 @@
-// Loan schedules: each installment split into principal and interest. Built from the agreed
-// annual rate, or from the lender's fixed installment amount (rate solved), or interest-free.
+// Loan schedules, straight-line (applies to every loan): equal principal and equal interest
+// each month, the last row absorbing rounding.
+//   total_interest     = installment × months − principal
+//   interest_per_month = ROUND(total_interest ÷ months, 2)
+//   principal_per_month = ROUND(principal ÷ months, 2)
+//   last row: total − per_month × (months − 1), for both
+// Every row must pay exactly the installment, and the rows must add up to the principal and the
+// total interest to the centavo; otherwise the loan is rejected.
 
 export interface Installment {
   seq: number;
@@ -17,43 +23,47 @@ export function addMonths(date: string, n: number): string {
   return target.toISOString().slice(0, 10);
 }
 
-function payment(principal: number, monthlyRate: number, months: number): number {
-  if (monthlyRate === 0) return principal / months;
-  return (principal * monthlyRate) / (1 - Math.pow(1 + monthlyRate, -months));
+export interface Schedule {
+  installments: Installment[];
+  installmentCents: number;
+  totalInterestCents: number;
+  interestPerMonthCents: number;
+  principalPerMonthCents: number;
+  errors: string[];
 }
 
-/** Monthly rate that makes `months` equal installments of `installment` repay `principal`. */
-export function solveMonthlyRate(principal: number, installment: number, months: number): number {
-  if (installment * months <= principal) return 0;
-  let lo = 0;
-  let hi = 1;
-  for (let i = 0; i < 200; i++) {
-    const mid = (lo + hi) / 2;
-    if (payment(principal, mid, months) > installment) hi = mid;
-    else lo = mid;
-  }
-  return (lo + hi) / 2;
-}
+export function buildSchedule(opts: { principalCents: number; months: number; firstDue: string; installmentCents: number }): Schedule {
+  const { principalCents: principal, months, firstDue, installmentCents: installment } = opts;
+  const errors: string[] = [];
+  if (!(principal > 0)) errors.push("Enter the principal.");
+  if (!(months > 0) || !Number.isInteger(months)) errors.push("Enter the number of months.");
+  if (!(installment > 0)) errors.push("Enter the installment amount.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(firstDue)) errors.push("Enter the first due date.");
+  const totalInterest = installment * months - principal;
+  if (errors.length) return { installments: [], installmentCents: installment, totalInterestCents: totalInterest, interestPerMonthCents: 0, principalPerMonthCents: 0, errors };
+  if (totalInterest < 0) errors.push("The installments add up to less than the principal.");
 
-export function buildSchedule(opts: {
-  principalCents: number;
-  months: number;
-  firstDue: string;
-  annualRatePct?: number;
-  installmentCents?: number;
-}): { installments: Installment[]; annualRatePct: number; installmentCents: number } {
-  const { principalCents, months, firstDue } = opts;
-  const monthlyRate = opts.installmentCents
-    ? solveMonthlyRate(principalCents, opts.installmentCents, months)
-    : (opts.annualRatePct ?? 0) / 100 / 12;
-  const installmentCents = opts.installmentCents ?? Math.round(payment(principalCents, monthlyRate, months));
+  const interestPer = Math.round(totalInterest / months);
+  const principalPer = Math.round(principal / months);
   const installments: Installment[] = [];
-  let balance = principalCents;
   for (let seq = 1; seq <= months; seq++) {
-    const interestCents = Math.round(balance * monthlyRate);
-    const principal = seq === months ? balance : Math.min(balance, installmentCents - interestCents);
-    installments.push({ seq, dueDate: addMonths(firstDue, seq - 1), principalCents: principal, interestCents });
-    balance -= principal;
+    const last = seq === months;
+    installments.push({
+      seq,
+      dueDate: addMonths(firstDue, seq - 1),
+      principalCents: last ? principal - principalPer * (months - 1) : principalPer,
+      interestCents: last ? totalInterest - interestPer * (months - 1) : interestPer,
+    });
   }
-  return { installments, annualRatePct: Math.round(monthlyRate * 12 * 100 * 10000) / 10000, installmentCents };
+  const sumP = installments.reduce((s, i) => s + i.principalCents, 0);
+  const sumI = installments.reduce((s, i) => s + i.interestCents, 0);
+  if (sumP !== principal) errors.push("The schedule's principal doesn't add up to the loan.");
+  if (sumI !== totalInterest) errors.push("The schedule's interest doesn't add up to the total interest.");
+  const off = installments.find((i) => i.principalCents + i.interestCents !== installment);
+  if (off) {
+    errors.push(
+      `Installment ${off.seq} would be ${((off.principalCents + off.interestCents) / 100).toFixed(2)}, not ${(installment / 100).toFixed(2)}: the rounded monthly principal and interest don't add up to the installment.`,
+    );
+  }
+  return { installments, installmentCents: installment, totalInterestCents: totalInterest, interestPerMonthCents: interestPer, principalPerMonthCents: principalPer, errors };
 }

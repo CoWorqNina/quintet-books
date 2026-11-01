@@ -153,7 +153,7 @@ export async function loansDueWithinYear(db: DB, asOf: string): Promise<Map<stri
   for (const l of registers.loans ?? []) {
     if (!l.in_force || (l.entry_id && l.entry_status !== "Approved")) continue;
     const due = (l.installments ?? [])
-      .filter((i) => (i.due_date > asOf && i.due_date <= limit) || (i.due_date <= asOf && !i.paid_entry_id))
+      .filter((i) => (i.due_date > asOf && i.due_date <= limit) || (i.due_date <= asOf && !i.paid))
       .reduce((s, i) => s + toCents(Number(i.principal)), 0);
     out.set(l.account_code, (out.get(l.account_code) ?? 0) + due);
   }

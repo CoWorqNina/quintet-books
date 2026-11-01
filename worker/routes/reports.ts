@@ -95,13 +95,13 @@ reports.get("/management", async (c) => {
     .filter((l) => l.in_force && (!l.entry_id || l.entry_status === "Approved"))
     .map((l) => {
       const inst = l.installments ?? [];
-      const unpaid = inst.filter((i) => !i.paid_entry_id);
+      const unpaid = inst.filter((i) => !i.paid);
       const next = unpaid[0];
       return {
         name: l.name,
         lender: (l as { lender_name?: string }).lender_name ?? "",
         rate: Number((l as { annual_rate?: number }).annual_rate ?? 0),
-        principalCents: toCents(Number(l.principal)) - inst.filter((i) => i.paid_entry_id).reduce((s, i) => s + toCents(Number(i.principal)), 0),
+        principalCents: toCents(Number(l.principal)) - inst.filter((i) => i.paid).reduce((s, i) => s + toCents(Number(i.principal)), 0),
         interestPayableCents: accrued.get(`loan:${l.id}`) ?? 0,
         paid: inst.length - unpaid.length,
         of: inst.length,

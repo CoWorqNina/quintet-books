@@ -57,8 +57,8 @@ export interface LoanInfo {
   accountCode: string;
   interestAccount: string;
   book: Book;
-  /** Next unpaid installment from the schedule, with interest already accrued for it. */
-  next: { id: number; dueDate: string; principal: number; interest: number; accrued: number } | null;
+  /** Next unpaid installment from the schedule, and whether its interest is already recorded. */
+  next: { id: number; seq: number; dueDate: string; principal: number; interest: number; interestRecorded: boolean } | null;
 }
 
 export interface TemplateContext {

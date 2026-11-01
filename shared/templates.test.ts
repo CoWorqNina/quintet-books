@@ -355,7 +355,7 @@ describe("assets, prepaids and loans", () => {
   it("#33 loan proceeds net of fees with the schedule from the lender's installment", () => {
     const r = build(33, {
       date: "2026-11-10", name: "UB loan", lender: "recUB", account: "2230", interestAccount: "7530", principal: 400000, fees: 2000,
-      receivedIn: "1140", months: 24, firstDue: "2026-12-10", basis: "installment", installment: 19386.67, proof: photo,
+      receivedIn: "1140", months: 24, firstDue: "2026-12-10", installment: 19386.67, proof: photo,
     });
     expect(r.errors).toEqual([]);
     expect(lines(r)).toEqual([
@@ -365,19 +365,28 @@ describe("assets, prepaids and loans", () => {
     ]);
     const inst = r.register!.data.installments as { principal: number; interest: number }[];
     expect(inst).toHaveLength(24);
-    expect(Math.round(inst.reduce((s, i) => s + i.principal, 0) * 100)).toBe(400000_00);
+    expect(inst[0]).toMatchObject({ principal: 16666.67, interest: 2720 });
+    expect(inst[23]).toMatchObject({ principal: 16666.59, interest: 2720.08 });
+    expect(r.register!.data).toMatchObject({ method: "straight-line", installment_amount: 19386.67 });
+    expect(build(33, { date: "2026-11-10", name: "x", lender: "recUB", account: "2230", interestAccount: "7530", principal: 100.01, receivedIn: "1140", months: 2, firstDue: "2026-12-10", installment: 60, proof: photo }).errors.join()).toMatch(/don't add up to the installment/);
     const taken = testCtx({ loans: new Map([["1", { id: 1, name: "Old", accountCode: "2230", interestAccount: "7530", book: "Store", next: null }]]) });
-    expect(build(33, { date: "2026-11-10", name: "x", lender: "recUB", account: "2230", interestAccount: "7530", principal: 1000, receivedIn: "1140", months: 2, firstDue: "2026-12-10", basis: "none", proof: photo }, taken).errors.join()).toMatch(/already holds/);
+    expect(build(33, { date: "2026-11-10", name: "x", lender: "recUB", account: "2230", interestAccount: "7530", principal: 1000, receivedIn: "1140", months: 2, firstDue: "2026-12-10", installment: 500, proof: photo }, taken).errors.join()).toMatch(/already holds/);
   });
 
-  it("#34 installment splits principal and interest, clearing accrued interest first", () => {
-    const loans = new Map([["7", { id: 7, name: "UB loan", accountCode: "2230", interestAccount: "7530", book: "Store" as Book, next: { id: 70, dueDate: "2026-12-10", principal: 14386.67, interest: 5000, accrued: 3000 } }]]);
+  it("#34 installment: split from the schedule row; accrued interest clears 2250, otherwise it's expensed", () => {
+    const next = { id: 70, seq: 8, dueDate: "2026-11-12", principal: 16666.67, interest: 2720, interestRecorded: true };
+    const loans = new Map([["7", { id: 7, name: "UB loan", accountCode: "2230", interestAccount: "7530", book: "Store" as Book, next }]]);
     const r = build(34, { date: "2026-12-10", loan: "7", paidFrom: "1140", reference: "UB-1" }, testCtx({ loans }));
     expect(r.errors).toEqual([]);
     expect(lines(r)).toEqual([
-      ["2230", 14386_67, 0],
-      ["2250", 3000_00, 0],
-      ["7530", 2000_00, 0],
+      ["2230", 16666_67, 0],
+      ["2250", 2720_00, 0],
+      ["1140", 0, 19386_67],
+    ]);
+    const notYet = new Map([["7", { ...loans.get("7")!, next: { ...next, interestRecorded: false } }]]);
+    expect(lines(build(34, { date: "2026-11-12", loan: "7", paidFrom: "1140", reference: "UB-1" }, testCtx({ loans: notYet })))).toEqual([
+      ["2230", 16666_67, 0],
+      ["7530", 2720_00, 0],
       ["1140", 0, 19386_67],
     ]);
     expect(r.entries[0].lines[1].party_id).toBe("loan:7");

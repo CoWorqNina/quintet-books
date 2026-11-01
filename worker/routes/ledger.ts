@@ -167,7 +167,7 @@ ledger.get("/sub/:kind", async (c) => {
     const lines = await partyLines(c.env, ["2250", ...new Set(loans.map((l) => l.account_code))], asOf, book);
     const interest = lines.filter((l) => l.account_code === "2250");
     const rows = loans.map((l) => {
-      const paid = (l.installments ?? []).filter((i) => i.paid_entry_id);
+      const paid = (l.installments ?? []).filter((i) => i.paid);
       return {
         id: l.id,
         name: l.name,

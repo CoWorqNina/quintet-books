@@ -10,6 +10,7 @@ import {
   interestAccrual,
   inventoryAdjustment,
   type LoanRecord,
+  type LoanRow,
   monthsThrough,
   ownerAllowanceExcess,
   ownerFoodSummary,
@@ -74,24 +75,35 @@ describe("amortization", () => {
   });
 });
 
-describe("interest accrual", () => {
-  const loan: LoanRecord = {
-    id: 7, name: "UB loan", book: "Store", interest_account: "7510", in_force: true, entry_id: 1, entry_status: "Approved",
+describe("interest accrual (straight-line, per schedule row)", () => {
+  const row = (id: number, seq: number, due: string, over: Partial<LoanRow> = {}): LoanRow => ({
+    id, seq, due_date: due, principal: 16666.67, interest: 2720, paid: false, interest_recorded: false, ...over,
+  });
+  const ub: LoanRecord = {
+    id: 7, name: "UB loan", book: "Store", interest_account: "7510", in_force: true, entry_id: null, entry_status: null,
     installments: [
-      { seq: 1, due_date: "2026-12-10", interest: 5000, paid_entry_id: null },
-      { seq: 2, due_date: "2027-01-10", interest: 4800, paid_entry_id: null },
+      row(77, 7, "2026-10-12", { paid: true, interest_recorded: true }),
+      row(78, 8, "2026-11-12"),
+      row(79, 9, "2026-12-12"),
     ],
   };
-  it("accrues the interest of the installment due next month", () => {
-    expect(lines(interestAccrual("2026-11", [loan], new Map())[0])).toEqual([
-      ["7510", 5000_00, 0, "GGC"],
-      ["2250", 0, 5000_00, null],
+  it("accrues the interest of the row due in the closing month and links it", () => {
+    const [g] = interestAccrual("2026-11", [ub], "2026-11-01");
+    expect(lines(g)).toEqual([
+      ["7510", 2720_00, 0, "GGC"],
+      ["2250", 0, 2720_00, null],
     ]);
+    expect(g.entry.lines[1].party_id).toBe("loan:7");
+    expect(g.register).toEqual({ type: "loan_interest", data: { installment_ids: [78] } });
   });
-  it("after the installment is paid, accrues the following one, net of what's accrued", () => {
-    const paid = { ...loan, installments: loan.installments!.map((i) => (i.seq === 1 ? { ...i, paid_entry_id: 3 } : i)) };
-    expect(interestAccrual("2026-12", [paid], new Map([[bookedKey("loan:7", "2250"), 0]]))[0].entry.lines[0].debitCents).toBe(4800_00);
-    expect(interestAccrual("2026-11", [loan], new Map([[bookedKey("loan:7", "2250"), -5000_00]]))).toEqual([]);
+  it("skips rows already recorded (accrued, or paid with the interest in the payment) and rows before go-live", () => {
+    const paid = { ...ub, installments: ub.installments!.map((r) => (r.seq === 8 ? { ...r, interest_recorded: true } : r)) };
+    expect(interestAccrual("2026-11", [paid], "2026-11-01")).toEqual([]);
+    const lateBeforeGoLive = { ...ub, installments: [row(70, 7, "2026-10-12")] };
+    expect(interestAccrual("2026-11", [lateBeforeGoLive], "2026-11-01")).toEqual([]);
+  });
+  it("an overdue row from an earlier month still gets its interest accrued", () => {
+    expect(interestAccrual("2026-12", [ub], "2026-11-01")[0].register!.data.installment_ids).toEqual([78, 79]);
   });
 });
 

@@ -58,12 +58,30 @@ export interface SpreadRecord extends InForce {
   months: number;
   amortized_before_go_live: number | string;
 }
+/** One schedule row as the registers report it. */
+export interface LoanRow {
+  id: number;
+  seq: number;
+  due_date: string;
+  principal: number | string;
+  interest: number | string;
+  /** Paid before go-live or by a payment entry in force. */
+  paid: boolean;
+  /** Interest booked once: by the month-end accrual, by the payment, or before go-live. */
+  interest_recorded: boolean;
+  interest_entry_id?: number | null;
+  interest_status?: string | null;
+  /** Unpaid at go-live with its interest in the opening balances (2250). */
+  interest_before_go_live?: boolean;
+  paid_entry_id?: number | null;
+}
+
 export interface LoanRecord extends InForce {
   id: number;
   name: string;
   book: Book;
   interest_account: string;
-  installments: { seq: number; due_date: string; interest: number | string; paid_entry_id: number | null }[] | null;
+  installments: LoanRow[] | null;
 }
 
 /** Counts once its creating entry is approved (go-live records have no entry). */
@@ -86,6 +104,8 @@ export interface Generated {
   kind: GeneratedKind;
   book: Book;
   entry: EntryDraft;
+  /** Saved together with the entry (links the loan rows whose interest it books). */
+  register?: { type: "loan_interest"; data: { installment_ids: number[] } };
   /** One row per register item, for the preview. */
   details: { label: string; cents: number }[];
 }
@@ -176,29 +196,32 @@ export function amortization(period: string, spreads: SpreadRecord[], booked: Bo
 }
 
 /**
- * Interest is accrued for every unpaid installment due by the end of next month, less what is
- * already accrued for that loan (Accrued Interest Payable, cleared by each installment).
- * Interest goes to GGC (loans are taken for the business as a whole).
+ * Interest accrual, straight-line: for each schedule row due in the closing month (or an
+ * earlier month since go-live) whose interest isn't recorded yet, Dr the loan's interest expense /
+ * Cr Accrued Interest Payable for that row's interest, and link the row to the entry. Each row's
+ * interest is booked exactly once. Interest goes to GGC (loans are for the business as a whole).
  */
-export function interestAccrual(period: string, loans: LoanRecord[], booked: Booked): Generated[] {
+export function interestAccrual(period: string, loans: LoanRecord[], goLive: string): Generated[] {
   const out: Generated[] = [];
-  const limit = `${addMonths(`${period}-01`, 2)}`; // first day of the month after next
+  const end = monthEnd(period);
   for (const book of books(loans)) {
     const lines: LineDraft[] = [];
     const details: Generated["details"] = [];
+    const ids: number[] = [];
     for (const l of loans.filter((x) => x.book === book && counts(x))) {
-      const owed = (l.installments ?? []).filter((i) => !i.paid_entry_id && i.due_date < limit).reduce((s, i) => s + toCents(Number(i.interest)), 0);
-      const accrued = -(booked.get(bookedKey(`loan:${l.id}`, ACCRUED_INTEREST)) ?? 0);
-      const amount = owed - accrued;
-      if (amount <= 0) continue;
-      lines.push(
-        debit(l.interest_account, amount, "gen.expense", { profit_center: "GGC" }),
-        credit(ACCRUED_INTEREST, amount, "gen.interest", { party_id: `loan:${l.id}`, party_name: l.name }),
-      );
-      details.push({ label: l.name, cents: amount });
+      for (const r of (l.installments ?? []).filter((i) => !i.interest_recorded && i.due_date >= goLive && i.due_date <= end)) {
+        const amount = toCents(Number(r.interest));
+        if (!amount) continue;
+        lines.push(
+          debit(l.interest_account, amount, "gen.expense", { profit_center: "GGC" }),
+          credit(ACCRUED_INTEREST, amount, "gen.interest", { party_id: `loan:${l.id}`, party_name: l.name, memo: `Installment ${r.seq}, due ${r.due_date}` }),
+        );
+        details.push({ label: `${l.name}: installment ${r.seq} (due ${r.due_date})`, cents: amount });
+        ids.push(r.id);
+      }
     }
     const g = adjusting("interest", book, period, lines, details);
-    if (g) out.push(g);
+    if (g) out.push({ ...g, register: { type: "loan_interest", data: { installment_ids: ids } } });
   }
   return out;
 }
