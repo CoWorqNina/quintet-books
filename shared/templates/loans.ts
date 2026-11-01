@@ -44,21 +44,9 @@ export const loanProceeds: Template = {
     { name: "principal", label: "Principal", type: "money", required: true },
     { name: "fees", label: "Fees deducted on release", type: "money" },
     { name: "receivedIn", label: "Received in", type: "account", filter: "bank", required: true },
+    { name: "installment", label: "Monthly installment amount", type: "money", required: true, help: "From the lender's disclosure; for no interest, principal ÷ months" },
     { name: "months", label: "Number of installments (months)", type: "number", required: true },
     { name: "firstDue", label: "First installment due", type: "date", required: true },
-    {
-      name: "basis",
-      label: "Schedule from",
-      type: "select",
-      required: true,
-      options: [
-        { value: "installment", label: "The lender's fixed installment amount" },
-        { value: "rate", label: "An agreed annual interest rate (informal loan)" },
-        { value: "none", label: "No interest" },
-      ],
-    },
-    { name: "installment", label: "Monthly installment", type: "money", required: true, showIf: { field: "basis", values: ["installment"] } },
-    { name: "rate", label: "Annual interest rate (%)", type: "number", required: true, showIf: { field: "basis", values: ["rate"] } },
     { name: "proof", label: "Loan agreement / disclosure", type: "attachment", required: true },
   ],
   build(v, ctx): BuildResult {
@@ -75,20 +63,13 @@ export const loanProceeds: Template = {
     const fees = cents(v.fees);
     const months = Math.floor(Number(v.months));
     if (fees >= principal && principal) errors.push("Fees can't be the whole loan.");
-    const basis = str(v.basis);
+    // Straight-line schedule; the loan is rejected unless every row pays exactly the installment
+    // and the rows add up to the principal and the total interest.
     const schedule =
-      principal > 0 && months > 0 && str(v.firstDue)
-        ? buildSchedule({
-            principalCents: principal,
-            months,
-            firstDue: str(v.firstDue),
-            installmentCents: basis === "installment" ? cents(v.installment) : undefined,
-            annualRatePct: basis === "rate" ? Number(v.rate) : 0,
-          })
+      principal > 0 && months > 0 && str(v.firstDue) && cents(v.installment) > 0
+        ? buildSchedule({ principalCents: principal, months, firstDue: str(v.firstDue), installmentCents: cents(v.installment) })
         : null;
-    if (basis === "installment" && schedule && cents(v.installment) * months < principal) {
-      errors.push("The installments don't cover the principal.");
-    }
+    if (schedule) errors.push(...schedule.errors);
     const entry = makeEntry(
       ctx,
       v,
@@ -113,10 +94,12 @@ export const loanProceeds: Template = {
           interest_account: str(v.interestAccount),
           book: ctx.book,
           principal: principal / 100,
-          annual_rate: schedule?.annualRatePct ?? 0,
+          annual_rate: 0,
+          method: "straight-line",
+          installment_amount: cents(v.installment) / 100,
           term_months: months,
           start_date: str(v.date),
-          informal: basis !== "installment",
+          notes: schedule ? `Straight-line: total interest ${formatPeso(schedule.totalInterestCents)}` : null,
           installments: (schedule?.installments ?? []).map((i) => ({
             seq: i.seq,
             due_date: i.dueDate,
@@ -152,21 +135,22 @@ export const loanInstallment: Template = {
     if (loan && loan.book !== ctx.book) errors.push(`${loan.name} is in the ${loan.book} book.`);
     if (loan && !loan.next) errors.push(`${loan.name} has no unpaid installments.`);
     const next = loan?.next;
-    // The split always comes from the schedule; interest already accrued clears Accrued Interest Payable.
+    // The split always comes from the schedule row (never typed). Interest already recorded by the
+    // month-end accrual clears Accrued Interest Payable; otherwise it's expensed here, once.
     const principal = next ? Math.round(next.principal * 100) : 0;
     const interest = next ? Math.round(next.interest * 100) : 0;
-    const accrued = next ? Math.min(Math.round(next.accrued * 100), interest) : 0;
+    const accrued = next?.interestRecorded ? interest : 0;
     const total = principal + interest;
     const entry = loan
       ? makeEntry(
           ctx,
           v,
           34,
-          `${loan.name}: installment ${next?.dueDate ?? ""} (${formatPeso(total)})`,
+          `${loan.name}: installment ${next?.seq ?? ""} due ${next?.dueDate ?? ""} (${formatPeso(total)})`,
           [
             debit(loan.accountCode, principal, "34.principal"),
             debit(ACCRUED_INTEREST, accrued, "34.accrued", { party_id: `loan:${loan.id}`, party_name: loan.name }),
-            debit(loan.interestAccount, interest - accrued, "34.interest", { profit_center: ctx.book === "Commissary" ? "GGC" : ctx.profitCenter }),
+            debit(loan.interestAccount, interest - accrued, "34.interest", { profit_center: "GGC" }),
             credit(str(v.paidFrom), total, "34.paid"),
           ],
           { source_document: str(v.reference), attachments: attachmentsOf(v.proof) },

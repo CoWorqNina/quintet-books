@@ -96,6 +96,11 @@ so password-reset emails link back to the app.
 1. Supabase → **SQL Editor** → paste all of `supabase/migrations/0006_statements.sql` → **Run**.
    It adds read-only statement functions. Run it **before** the Phase 5 code is deployed.
 
+## 11. Straight-line loans
+
+1. Supabase → **SQL Editor** → run `supabase/migrations/0007_loans_straight_line.sql`.
+2. Then run `supabase/data/golive_loans.sql` (UB and RCBC go-live records).
+
 ## Moving to a custom domain later
 
 Add the domain in the Worker → **Settings → Domains & Routes**, then update the Supabase

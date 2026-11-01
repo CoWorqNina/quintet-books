@@ -136,11 +136,25 @@ export async function runChecks(db: SupabaseClient, period: string, accounts: Ma
 
   const loanIssues: string[] = [];
   for (const l of (registers.loans ?? []).filter((x) => x.in_force && (!x.entry_id || x.entry_status === "Approved"))) {
-    const remaining = toCents(Number(l.principal)) - (l.installments ?? []).filter((i) => i.paid_entry_id).reduce((s, i) => s + toCents(Number(i.principal)), 0);
+    const remaining = toCents(Number(l.principal)) - (l.installments ?? []).filter((i) => i.paid).reduce((s, i) => s + toCents(Number(i.principal)), 0);
     const ledger = -balanceOf(totals, l.account_code, l.book);
     if (remaining !== ledger) loanIssues.push(`${l.name}: tracker ${peso(remaining)}, ${l.account_code} balance ${peso(ledger)}`);
   }
   add("loans", "Each loan balance equals its Loan Tracker", loanIssues);
+
+  // Loan interest: every installment due this month has its interest recorded, and 2250 Accrued
+  // Interest Payable equals the interest recorded by accruals but not yet paid.
+  const liveLoans = (registers.loans ?? []).filter((x) => x.in_force && (!x.entry_id || x.entry_status === "Approved"));
+  const unrecorded = liveLoans.flatMap((l) =>
+    (l.installments ?? []).filter((i) => i.due_date.startsWith(period) && !i.interest_recorded).map((i) => `${l.name}: installment ${i.seq} (due ${i.due_date})`),
+  );
+  add("loan-interest", "Interest recorded for every installment due this month", unrecorded.length ? [...unrecorded, "Generate Month-end → Adjusting entries → Interest accrual"] : []);
+  const accruedUnpaid = liveLoans.reduce(
+    (s, l) => s + (l.installments ?? []).filter((i) => i.interest_entry_id && !i.paid && i.due_date <= asOf).reduce((t, i) => t + toCents(Number(i.interest)), 0),
+    0,
+  );
+  const ledger2250 = -BOOKS.reduce((s, b) => s + balanceOf(totals, "2250", b), 0);
+  add("accrued-interest", "Accrued Interest Payable equals interest recorded but not yet paid", ledger2250 === accruedUnpaid ? [] : [`Loan schedules ${peso(accruedUnpaid)}, 2250 balance ${peso(ledger2250)}`]);
 
   const faIssues: string[] = [];
   const liveAssets = (registers.assets ?? []).filter((a) => a.in_force && (!a.entry_id || a.entry_status === "Approved") && a.status !== "Disposed");

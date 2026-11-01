@@ -47,8 +47,29 @@ interface Loan extends Status {
   principal: number;
   annual_rate: number;
   term_months: number;
-  installments: { id: number; seq: number; due_date: string; principal: number; interest: number; paid_entry_id: number | null }[] | null;
+  method: string | null;
+  installment_amount: number | null;
+  installments: LoanRowView[] | null;
 }
+
+interface LoanRowView {
+  id: number;
+  seq: number;
+  due_date: string;
+  principal: number;
+  interest: number;
+  paid: boolean;
+  paid_before_go_live: boolean;
+  paid_entry_id: number | null;
+  date_paid: string | null;
+  payment_status: string | null;
+  interest_recorded: boolean;
+  interest_entry_id: number | null;
+  interest_status: string | null;
+}
+
+/** Paid / Due / Overdue, as of today. */
+const rowStatus = (i: LoanRowView) => (i.paid ? "Paid" : i.due_date < todayManila() ? "Overdue" : "Due");
 
 const peso = (n: number) => formatPeso(toCents(n));
 
@@ -243,38 +264,85 @@ export default function Registers({ user }: { user: AppUser }) {
       </div>
 
       <h2>Loans</h2>
+      <p className="muted">
+        Straight-line schedules: the same principal and interest every month, the last month absorbing rounding. Each row's interest is booked
+        once, by the month-end accrual or by the payment.
+      </p>
       {live(data?.loans).map((l) => {
         const inst = l.installments ?? [];
-        const paid = inst.filter((i) => i.paid_entry_id);
-        const balance = l.principal - paid.reduce((s, i) => s + Number(i.principal), 0);
+        const paid = inst.filter((i) => i.paid);
+        const balance = Number(l.principal) - paid.reduce((s, i) => s + Number(i.principal), 0);
+        const totalInterest = inst.reduce((s, i) => s + Number(i.interest), 0);
+        const accrued = inst.filter((i) => i.interest_entry_id && !i.paid).reduce((s, i) => s + Number(i.interest), 0);
+        const overdue = inst.filter((i) => rowStatus(i) === "Overdue").length;
         return (
           <details key={l.id} className="card">
             <summary>
-              <strong>{l.name}</strong> · {l.lender_name} · {l.account_code} · {peso(l.principal)} at {l.annual_rate}% · {paid.length}/{inst.length}{" "}
-              paid · balance {peso(balance)} <StatusBadge r={l} />
+              <strong>{l.name}</strong> · {l.lender_name} · {l.account_code} · {peso(l.principal)} · {l.installment_amount ? `${peso(l.installment_amount)} × ${l.term_months}` : `${l.term_months} months`} ·
+              total interest {peso(totalInterest)} · {paid.length}/{inst.length} paid · balance {peso(balance)}
+              {accrued > 0 && ` · interest payable ${peso(accrued)}`} {overdue > 0 && <span className="badge error">{overdue} overdue</span>} <StatusBadge r={l} />
             </summary>
-            <table className="lines">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>Due</th>
-                  <th>Principal</th>
-                  <th>Interest</th>
-                  <th>Paid</th>
-                </tr>
-              </thead>
-              <tbody>
-                {inst.map((i) => (
-                  <tr key={i.id}>
-                    <td>{i.seq}</td>
-                    <td>{i.due_date}</td>
-                    <td className="num">{peso(i.principal)}</td>
-                    <td className="num">{peso(i.interest)}</td>
-                    <td>{i.paid_entry_id ? `entry #${i.paid_entry_id}` : ""}</td>
+            <div className="table-wrap">
+              <table className="lines">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Period</th>
+                    <th>Due</th>
+                    <th className="num">Payment</th>
+                    <th className="num">Principal</th>
+                    <th className="num">Interest</th>
+                    <th>Interest recorded</th>
+                    <th>Paid</th>
+                    <th className="num">Remaining balance</th>
+                    <th>Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {inst.map((i) => {
+                    const after = Math.round((Number(l.principal) - inst.filter((x) => x.seq <= i.seq).reduce((t, x) => t + Number(x.principal), 0)) * 100) / 100;
+                    const st = rowStatus(i);
+                    return (
+                      <tr key={i.id}>
+                        <td>{i.seq}</td>
+                        <td>{i.due_date.slice(0, 7)}</td>
+                        <td>{i.due_date}</td>
+                        <td className="num">{peso(Number(i.principal) + Number(i.interest))}</td>
+                        <td className="num">{peso(i.principal)}</td>
+                        <td className="num">{peso(i.interest)}</td>
+                        <td>
+                          {i.paid_before_go_live ? (
+                            <span className="muted">Before go-live</span>
+                          ) : i.interest_entry_id ? (
+                            <Link to={`/journal?entry=${i.interest_entry_id}`}>Accrued #{i.interest_entry_id}</Link>
+                          ) : i.interest_recorded ? (
+                            <span className="muted">With payment</span>
+                          ) : (
+                            ""
+                          )}
+                        </td>
+                        <td>
+                          {i.paid_before_go_live ? (
+                            <span className="muted">Before go-live</span>
+                          ) : i.paid_entry_id ? (
+                            <Link to={`/journal?entry=${i.paid_entry_id}`}>
+                              {i.date_paid} #{i.paid_entry_id}
+                              {i.payment_status !== "Approved" ? ` (${i.payment_status})` : ""}
+                            </Link>
+                          ) : (
+                            ""
+                          )}
+                        </td>
+                        <td className="num">{peso(after)}</td>
+                        <td>
+                          <span className={`badge ${st === "Paid" ? "ok" : st === "Overdue" ? "error" : "info"}`}>{st}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </details>
         );
       })}
@@ -494,31 +562,45 @@ function GoLiveForm({ onDone }: { onDone: () => void }) {
         amortized_before_go_live: Number(v.amortized || 0),
       };
     }
-    // A loan's go-live record carries the balance on Oct 31 and the installments still to pay.
-    const schedule = buildSchedule({
-      principalCents: toCents(Number(v.balance)),
-      months: Number(v.months),
-      firstDue: v.first_due,
-      installmentCents: v.installment ? toCents(Number(v.installment)) : undefined,
-      annualRatePct: v.installment ? undefined : Number(v.rate || 0),
-    });
+    // A loan's go-live record: the full straight-line schedule from the first installment, with
+    // the installments paid before Nov 1, 2026 marked paid (no entries; they're in the opening balances).
+    const schedule = loanSchedule();
+    const paidBefore = Number(v.paid_before || 0);
     return {
       name: v.name,
       lender_name: v.lender_name,
       account_code: v.account_code,
       interest_account: v.interest_account,
       book,
-      principal: Number(v.balance),
-      annual_rate: schedule.annualRatePct,
+      principal: Number(v.principal),
+      method: "straight-line",
+      installment_amount: Number(v.installment),
       term_months: Number(v.months),
-      start_date: "2026-10-31",
-      informal: !v.installment,
+      start_date: v.first_due,
       notes: v.notes || null,
-      installments: schedule.installments.map((i) => ({ seq: i.seq, due_date: i.dueDate, principal: fromCents(i.principalCents), interest: fromCents(i.interestCents) })),
+      installments: schedule.installments.map((i) => ({
+        seq: i.seq,
+        due_date: i.dueDate,
+        principal: fromCents(i.principalCents),
+        interest: fromCents(i.interestCents),
+        paid_before_go_live: i.seq <= paidBefore,
+      })),
     };
   }
 
+  function loanSchedule() {
+    return buildSchedule({
+      principalCents: toCents(Number(v.principal || 0)),
+      months: Number(v.months || 0),
+      firstDue: v.first_due ?? "",
+      installmentCents: toCents(Number(v.installment || 0)),
+    });
+  }
+  const preview = type === "loan" && v.principal && v.installment && v.months && v.first_due ? loanSchedule() : null;
+  const paidBefore = Number(v.paid_before || 0);
+
   async function save() {
+    if (preview?.errors.length) return setError(preview.errors[0]);
     setBusy(true);
     setError(null);
     try {
@@ -620,12 +702,19 @@ function GoLiveForm({ onDone }: { onDone: () => void }) {
               {options((a) => accountMatches("interest", a, fctx))}
             </select>
           </label>
-          {text("balance", "Principal balance on Oct 31, 2026", "number")}
-          {text("months", "Installments left", "number")}
-          {text("first_due", "Next installment due", "date")}
-          {text("installment", "Monthly installment (lender loans)", "number")}
-          {text("rate", "Or annual rate % (informal loans)", "number")}
-          {text("notes", "Notes (original amount, terms)")}
+          {text("principal", "Original principal", "number")}
+          {text("installment", "Monthly installment amount", "number")}
+          {text("months", "Number of installments (months)", "number")}
+          {text("first_due", "First installment due", "date")}
+          {text("paid_before", "Installments paid before Nov 1, 2026", "number")}
+          {text("notes", "Notes")}
+          {preview && (
+            <p className={`span2 ${preview.errors.length ? "error" : "muted"}`}>
+              {preview.errors.length
+                ? preview.errors.join(" ")
+                : `Straight-line: total interest ${formatPeso(preview.totalInterestCents)}; ${formatPeso(preview.principalPerMonthCents)} principal + ${formatPeso(preview.interestPerMonthCents)} interest a month. Opening Loans Payable (Oct 31): ${formatPeso(toCents(Number(v.principal)) - preview.installments.filter((i) => i.seq <= paidBefore).reduce((s, i) => s + i.principalCents, 0))}.`}
+            </p>
+          )}
         </>
       )}
       {error && <p className="error span2">{error}</p>}

@@ -13,10 +13,11 @@ import {
   ownerAllowanceExcess,
   interestAccrual,
   type LoanRecord,
+  type LoanRow,
   type SpreadRecord,
   thirteenthMonth,
 } from "../shared/monthEnd";
-import { OWNER_FOOD_ALLOWANCE_CENTS } from "../shared/config";
+import { GO_LIVE_DATE, OWNER_FOOD_ALLOWANCE_CENTS } from "../shared/config";
 import { toCents } from "../shared/money";
 import type { Book, ProfitCenter } from "../shared/types";
 import { getParties } from "./airtable";
@@ -26,7 +27,7 @@ import type { Env } from "./env";
 export interface Registers {
   assets: (AssetRecord & { cost: number })[];
   spreads: SpreadRecord[];
-  loans: (Omit<LoanRecord, "installments"> & { account_code: string; principal: number; installments: { seq: number; due_date: string; principal: number; interest: number; paid_entry_id: number | null }[] | null })[];
+  loans: (Omit<LoanRecord, "installments"> & { account_code: string; principal: number; installments: LoanRow[] | null })[];
 }
 
 export async function loadRegisters(db: SupabaseClient): Promise<Registers> {
@@ -102,7 +103,7 @@ export async function proposals(db: SupabaseClient, period: string, env: Env): P
   return [
     ...depreciation(period, registers.assets ?? [], booked),
     ...amortization(period, registers.spreads ?? [], booked),
-    ...interestAccrual(period, registers.loans ?? [], booked),
+    ...interestAccrual(period, registers.loans ?? [], GO_LIVE_DATE),
     ...thirteenthMonth(period, (gross.data ?? []) as { book: Book; profit_center: ProfitCenter | null; amount: number }[]),
     ...ownerAllowanceExcess(period, food, OWNER_FOOD_ALLOWANCE_CENTS, ownerIds),
   ];
