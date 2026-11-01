@@ -17,6 +17,7 @@ import { entries } from "./routes/entries";
 import { ledger } from "./routes/ledger";
 import { monthEndRoutes } from "./routes/monthEnd";
 import { parties } from "./routes/parties";
+import { statements } from "./routes/statements";
 import { setup } from "./routes/setup";
 import { serviceClient } from "./supabase";
 
@@ -70,6 +71,7 @@ app.route("/entries", entries);
 app.route("/ledger", ledger);
 app.route("/month-end", monthEndRoutes);
 app.route("/parties", parties);
+app.route("/statements", statements);
 app.route("/", setup);
 
 // Owners can download the whole ledger at any time.

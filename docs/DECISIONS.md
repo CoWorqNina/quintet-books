@@ -5,6 +5,9 @@ Accounting decisions are also recorded in the Airtable Judgment Log.
 
 | Date | Decision | Decided by |
 |---|---|---|
+| 2026-11-01 | Statement formats approved: Income Statement monthly, YTD, month by month, and this month vs YTD; Balance Sheet vs prior month-end. | Nina |
+| 2026-11-01 | Whole-business and GGC-as-a-whole views remove every Commissary transfer billing (#20) and the matching Store cost, including billings to The Nest. Store and Commissary book views keep them. | Build |
+| 2026-11-01 | Cash flow (direct): each entry's cash is spread over the other side of the entry in proportion (an installment splits into principal and interest; an asset bought partly on credit counts only the cash paid). Cash in transit (1190) and Suspense (1195) count as cash until cleared, so a classified cash-out shows under what it turned out to be. | Build |
 | 2026-11-01 | Loan principal and interest payable are kept apart: principal in each loan's own Loans Payable account, interest owed in 2250 Accrued Interest Payable with every line tagged to its loan (also required on opening balances and special entries). Shown per loan under Ledger → Sub-ledgers → Loans & interest payable. | Nina |
 | 2026-11-01 | Loan interest (accrued and paid) is tagged GGC; loans are taken for the business as a whole. Change per loan later if needed. | Build |
 | 2026-11-01 | 13th month accrual = 1/12 of the gross pay recorded by #22 in the month, per profit center. | Build |

@@ -3,6 +3,7 @@ import { ACCOUNTS, CASH_ON_HAND } from "../shared/accounts";
 import { CLEARING_ACCOUNTS, CLEARING_LIMIT_DAYS, monthEnd, openItems, type PartyLine, trialBalance, trialBalanceTotals } from "../shared/ledger";
 import { formatPeso, toCents } from "../shared/money";
 import { GENERATED_LABELS } from "../shared/monthEnd";
+import { cashAccounts, cashFlows, type CashLine } from "../shared/statements";
 import { DUE_FROM_STORE, DUE_TO_COMMISSARY } from "../shared/templates/commissary";
 import type { Account, Book } from "../shared/types";
 import { dbError } from "./db";
@@ -163,6 +164,28 @@ export async function runChecks(db: SupabaseClient, period: string, accounts: Ma
     e.entry_lines.filter((l) => accounts.get(l.account_code)?.statement === "Income Statement" && !l.profit_center).map(() => `Entry #${e.id}`),
   );
   add("tags", "Every revenue and expense line has a profit center", [...new Set(untagged)].slice(0, 20));
+
+  // Cash: per cash account, the month's cash flow (opening + inflows − outflows) ends at the ledger balance.
+  const cashList = [...accounts.values()].filter((a) => a.isCashAccount && !a.isHeader);
+  const allCash = cashAccounts([...accounts.values()], BOOKS);
+  const prevEnd = new Date(Date.parse(`${period}-01T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+  const [cashRes, openTotals] = await Promise.all([
+    db.rpc("cash_entry_lines", { p_from: `${period}-01`, p_to: asOf, p_cash: allCash }),
+    db.rpc("account_totals", { p_to: prevEnd, p_year_start: `${prevEnd.slice(0, 4)}-01-01`, p_mode: "adjusted" }),
+  ]);
+  dbError(cashRes.error);
+  dbError(openTotals.error);
+  const cashIssues: string[] = [];
+  for (const a of cashList) {
+    for (const book of BOOKS) {
+      if (a.book !== "Both" && a.book !== book) continue;
+      const flows = cashFlows(((cashRes.data ?? []) as CashLine[]).filter((l) => l.book === book), accounts, new Set([a.code]), [book]);
+      const end = balanceOf((openTotals.data ?? []) as typeof totals, a.code, book) + [...flows.values()].reduce((x, y) => x + y, 0);
+      const ledger = balanceOf(totals, a.code, book);
+      if (end !== ledger) cashIssues.push(`${a.code} ${a.name} (${book}): cash flow ends at ${peso(end)}, balance sheet ${peso(ledger)}`);
+    }
+  }
+  add("cash", "Cash flow closing cash equals balance sheet cash", cashIssues);
 
   // Data quality (for review).
   const quality: string[] = [];

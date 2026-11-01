@@ -18,6 +18,7 @@ import Classify from "./pages/Classify";
 import ManualEntry from "./pages/ManualEntry";
 import NewEntry, { CorrectEntry } from "./pages/NewEntry";
 import Registers from "./pages/Registers";
+import Statements from "./pages/Statements";
 import Parties from "./pages/Parties";
 import SetPassword from "./pages/SetPassword";
 
@@ -66,7 +67,7 @@ export default function App() {
 
   return (
     <div className="shell">
-      <header className="topbar">
+      <header className="topbar no-print">
         <NavLink to="/" className="brand" end>
           <img src="/logo.png" alt="Go Go Chicken" />
           <span>Books</span>
@@ -79,6 +80,7 @@ export default function App() {
           {canEnter && <NavLink to="/entries/new">New entry</NavLink>}
           {isOwner && <NavLink to="/approvals">Approvals</NavLink>}
           <NavLink to="/journal">Journal</NavLink>
+          {isBooks && <NavLink to="/statements">Statements</NavLink>}
           {isBooks && <NavLink to="/ledger">Ledger</NavLink>}
           {(isBooks || canCount) && <NavLink to={isBooks ? "/month-end" : "/month-end/inventory"}>Month-end</NavLink>}
           {isBooks && <NavLink to="/classify">For classification</NavLink>}
@@ -110,6 +112,7 @@ export default function App() {
           {isBooks && <Route path="/classify" element={<Classify user={user} />} />}
           {isBooks && <Route path="/registers" element={<Registers user={user} />} />}
           {isBooks && <Route path="/ledger/*" element={<Ledger />} />}
+          {isBooks && <Route path="/statements/*" element={<Statements />} />}
           {(isBooks || canCount) && <Route path="/month-end/*" element={<MonthEnd user={user} />} />}
           <Route path="*" element={<p>Page not found.</p>} />
         </Routes>

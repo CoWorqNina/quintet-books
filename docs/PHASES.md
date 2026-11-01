@@ -61,11 +61,18 @@ Each phase ends with something usable and tested before the next one starts.
 - Not yet: the "Cash" check (cash flow closing = balance sheet cash) arrives with the Cash Flow
   Statement in Phase 5
 
-## Phase 5 — Statements and reports
-- Income Statement (GGC | The Nest | Shared | Total), Balance Sheet, Cash Flow (direct) and Cash Flow per Account
-- Store / Commissary / Combined views with intercompany eliminations
-- Monthly management report, supplier cost comparison, exports
+## Phase 5 — Statements and reports (built; run `supabase/migrations/0006_statements.sql`)
+- Income Statement: monthly and year to date (GGC | The Nest | Shared | Total), month by month
+  with YTD and % of sales, and this month vs last month vs YTD; views for the whole business,
+  GGC as a whole, The Nest, Store book and Commissary book
+- Balance Sheet (this month-end vs last), current / non-current, loans split by due within
+  12 months, accrued interest on its own line; whole business, Store and Commissary views
+- Cash Flow Statement (direct method), monthly and YTD, and one per cash account; the month-end
+  "Cash" check now runs
+- Exports: CSV per statement and print / save as PDF. Supplier cost comparison is under Ledger
+- Not yet: a one-page monthly management report (Phase 6)
 
 ## Phase 6 — Year-end and hardening
+- Monthly management report (one page: sales, margins, cash, what needs attention)
 - Year-end close to Retained Earnings, post-closing trial balance
 - Custom domain switch (config only), backups, load/rate-limit testing
