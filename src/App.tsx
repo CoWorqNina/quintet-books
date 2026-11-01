@@ -12,6 +12,7 @@ import DailyReports from "./pages/DailyReports";
 import Home from "./pages/Home";
 import Journal from "./pages/Journal";
 import Ledger from "./pages/Ledger";
+import MonthEnd from "./pages/MonthEnd";
 import Login from "./pages/Login";
 import Classify from "./pages/Classify";
 import ManualEntry from "./pages/ManualEntry";
@@ -61,6 +62,7 @@ export default function App() {
   const canEnter = templatesFor(user.role, user.books).length > 0;
   const isOwner = user.role === "Owner";
   const isBooks = isOwner || user.role === "Accountant";
+  const canCount = user.role === "Supervisor" || user.role === "Commissary In-charge";
 
   return (
     <div className="shell">
@@ -78,6 +80,7 @@ export default function App() {
           {isOwner && <NavLink to="/approvals">Approvals</NavLink>}
           <NavLink to="/journal">Journal</NavLink>
           {isBooks && <NavLink to="/ledger">Ledger</NavLink>}
+          {(isBooks || canCount) && <NavLink to={isBooks ? "/month-end" : "/month-end/inventory"}>Month-end</NavLink>}
           {isBooks && <NavLink to="/classify">For classification</NavLink>}
           {isBooks && <NavLink to="/entries/manual">Special entry</NavLink>}
           {isBooks && <NavLink to="/registers">Registers</NavLink>}
@@ -107,6 +110,7 @@ export default function App() {
           {isBooks && <Route path="/classify" element={<Classify user={user} />} />}
           {isBooks && <Route path="/registers" element={<Registers user={user} />} />}
           {isBooks && <Route path="/ledger/*" element={<Ledger />} />}
+          {(isBooks || canCount) && <Route path="/month-end/*" element={<MonthEnd user={user} />} />}
           <Route path="*" element={<p>Page not found.</p>} />
         </Routes>
       </main>

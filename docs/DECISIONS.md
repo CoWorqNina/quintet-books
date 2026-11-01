@@ -5,6 +5,10 @@ Accounting decisions are also recorded in the Airtable Judgment Log.
 
 | Date | Decision | Decided by |
 |---|---|---|
+| 2026-11-01 | Loan interest (accrued and paid) is tagged GGC; loans are taken for the business as a whole. Change per loan later if needed. | Build |
+| 2026-11-01 | 13th month accrual = 1/12 of the gross pay recorded by #22 in the month, per profit center. | Build |
+| 2026-11-01 | Inventory is counted per location (Store–GGC, Store–The Nest, Commissary); the opening inventory balance belongs to GGC until the first count. | Build |
+| 2026-11-01 | Missing daily reports are flagged for review, not blocking (the store may have been closed). Pending entries, clearing balances past 10/14 days, unreconciled cash accounts, suspense and unbalanced books block the close. | Build |
 | 2026-10-30 | Fixed assets, prepaid/deferred spreads and loans live in **Supabase** (not Airtable) so each record is saved in the same transaction as its entry and drops out automatically when that entry is reversed or cancelled. | Build |
 | 2026-10-30 | Loan installments are split from a schedule: lender loans solve the rate from the fixed installment; informal loans use the agreed rate (0% if none). One Loans Payable account per loan. | Build |
 | 2026-10-30 | Approved entries are never edited. Corrections reverse the original and re-enter it (approved together). Asset, prepaid and loan entries are reversed and entered again rather than corrected in place. | Build |

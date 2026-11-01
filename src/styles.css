@@ -125,3 +125,9 @@ td.wrap { white-space: normal; min-width: 16rem; }
 .t-account table:first-child { border-right: 2px solid var(--text); }
 .t-account th { text-align: center; background: none; }
 tfoot td { font-weight: 600; }
+
+/* Phase 4: month-end */
+.check { display: flex; gap: 0.75rem; align-items: flex-start; padding: 0.5rem 0; border-bottom: 1px solid var(--line); }
+.check:last-child { border-bottom: 0; }
+.check .badge { min-width: 4.5rem; text-align: center; }
+.check ul { margin: 0.25rem 0 0; padding-left: 1.1rem; color: var(--muted); font-size: 0.9rem; }

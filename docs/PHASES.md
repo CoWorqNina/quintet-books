@@ -48,11 +48,18 @@ Each phase ends with something usable and tested before the next one starts.
   earlier years not yet closed are shown inside Retained Earnings until the year-end closing (Phase 6)
 - AP and clearing aging match payments to the oldest open amounts first (first in, first out)
 
-## Phase 4 — Schedules and month-end
-- Fixed Asset Register + depreciation, spread schedules, loan tracker + interest accrual
-- Payroll and 13th-month accruals, inventory counts and adjustment
-- Generated adjusting entries for owner approval
-- Bank reconciliations, Checks page (Section 10), close checklist, period lock/reopen
+## Phase 4 — Schedules and month-end (built; run `supabase/migrations/0005_month_end.sql`)
+- Generated adjusting entries for owner approval (one by one): depreciation per asset (straight
+  line, full first month), amortization of prepaids and deferred charges, loan interest accrual,
+  13th month accrual (1/12 of the month's gross pay). Each is "due to date minus already booked",
+  so a missed month catches up and nothing is booked twice
+- Inventory counts per location (Store–GGC, Store–The Nest, Commissary), optional; adjustment per
+  item against the last count, plus any gap with the ledger
+- Bank, e-wallet and cash-on-hand reconciliations with reconciling items and statement attachments
+- Close checklist + Section 10 checks on one page; an Owner closes only when nothing fails;
+  reopening needs a reason (logged)
+- Not yet: the "Cash" check (cash flow closing = balance sheet cash) arrives with the Cash Flow
+  Statement in Phase 5
 
 ## Phase 5 — Statements and reports
 - Income Statement (GGC | The Nest | Shared | Total), Balance Sheet, Cash Flow (direct) and Cash Flow per Account
