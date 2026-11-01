@@ -34,6 +34,12 @@ describe("income statement", () => {
     expect(row(rows, "Gross margin %").values.Total).toBe(Math.round((9900 / 13500) * 10000));
     expect(rows.some((r) => r.label.includes("Transfer Billings"))).toBe(false);
   });
+  it("follows the chart order: payroll before depreciation, inventory adjustment last in COGS", () => {
+    const more = [...totals, st("6100", "Store", "GGC", 100, 0), st("6810", "Store", "GGC", 10, 0), st("5199", "Store", "GGC", 5, 0), st("5210", "Store", "The Nest", 7, 0)];
+    const labels = incomeStatement(more, accounts, "business", ["Total"], () => ["Total"]).map((r) => r.label);
+    expect(labels.indexOf("Payroll")).toBeLessThan(labels.indexOf("Depreciation & amortization"));
+    expect(labels.indexOf("Inventory Adjustment (from month-end count)")).toBe(labels.indexOf("Total Cost of Goods Sold") - 1);
+  });
   it("the Commissary book keeps its billings; the Nest export has no Shared items", () => {
     const comm = incomeStatement(totals, accounts, "commissary", ["Amount"], () => ["Amount"]);
     expect(row(comm, "Net Sales").values.Amount).toBe(800_00);

@@ -87,7 +87,7 @@ export function incomeLine(a: Account | undefined, code: string): LineDef {
   if (type === "Contra-Revenue") return { section: "discounts", group: "", label: "Less: Sales Discounts", order: code };
   if (type === "Revenue" || (!a && code.startsWith("4"))) return { section: "revenue", group: "", label: line, order: code };
   if (type === "COGS" || (!a && code.startsWith("5"))) {
-    if (code === "5199") return { section: "cogs", group: "~", label: "Inventory Adjustment (from month-end count)", order: code };
+    if (code === "5199") return { section: "cogs", group: "~", label: "Inventory Adjustment (from month-end count)", order: "9" + code };
     if (code.startsWith("52")) return { section: "cogs", group: "The Nest", label: name, order: code };
     return { section: "cogs", group: "Go Go Chicken ingredients", label: line, order: code };
   }
@@ -98,7 +98,7 @@ export function incomeLine(a: Account | undefined, code: string): LineDef {
   const g = code.slice(0, 2);
   const group =
     g === "61" ? "Payroll" : g === "62" || g === "63" ? "Occupancy & utilities" : ["64", "65", "66"].includes(g) ? "Store operations" : g === "67" ? "General & administrative" : g === "68" ? "Depreciation & amortization" : "Other operating expenses";
-  return { section: "opex", group, label: g === "68" ? name : line, order: code };
+  return { section: "opex", group, label: g === "68" || g === "67" ? name : line, order: code };
 }
 
 const SECTION_TITLES: Record<Section, string> = {
@@ -140,7 +140,7 @@ export function incomeStatement(
     return out;
   };
   const of = (section: Section) =>
-    [...lines.values()].filter((l) => l.def.section === section).sort((a, b) => a.def.group.localeCompare(b.def.group) || a.def.order.localeCompare(b.def.order));
+    [...lines.values()].filter((l) => l.def.section === section).sort((a, b) => a.def.order.localeCompare(b.def.order));
   const rows: StatementRow[] = [];
   const push = (kind: StatementRowKind, label: string, values: Record<string, number>, sign: 1 | -1, codes?: Set<string>) =>
     rows.push({ kind, label, values: { ...zero(), ...values }, sign, codes: codes ? [...codes].sort() : undefined });
