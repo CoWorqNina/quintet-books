@@ -48,7 +48,7 @@ Each phase ends with something usable and tested before the next one starts.
   earlier years not yet closed are shown inside Retained Earnings until the year-end closing (Phase 6)
 - AP and clearing aging match payments to the oldest open amounts first (first in, first out)
 
-## Phase 4 — Schedules and month-end (built; run `supabase/migrations/0005_month_end.sql`)
+## Phase 4 — Schedules and month-end (done, live)
 - Generated adjusting entries for owner approval (one by one): depreciation per asset (straight
   line, full first month), amortization of prepaids and deferred charges, loan interest accrual,
   13th month accrual (1/12 of the month's gross pay). Each is "due to date minus already booked",
