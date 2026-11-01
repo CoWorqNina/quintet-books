@@ -7,6 +7,8 @@ import { cashAccounts, cashFlows, type CashLine } from "../shared/statements";
 import { DUE_FROM_STORE, DUE_TO_COMMISSARY } from "../shared/templates/commissary";
 import type { Account, Book } from "../shared/types";
 import { dbError } from "./db";
+import type { Env } from "./env";
+import { yearEndStatus } from "./routes/yearEnd";
 import { balanceOf, existingGenerated, loadRegisters, proposals, totalsAt } from "./monthEnd";
 
 export interface Check {
@@ -21,7 +23,7 @@ const peso = (c: number) => formatPeso(c);
 const BOOKS: Book[] = ["Store", "Commissary"];
 
 /** Every month-end check (Section 10) and close checklist item for one month. */
-export async function runChecks(db: SupabaseClient, period: string, accounts: Map<string, Account>, today: string): Promise<Check[]> {
+export async function runChecks(db: SupabaseClient, period: string, accounts: Map<string, Account>, today: string, env: Env): Promise<Check[]> {
   const asOf = monthEnd(period);
   const [totals, registers, generated, proposed, entriesRes, reportsRes, recsRes, countsRes, partyRes, periodsRes] = await Promise.all([
     totalsAt(db, period),
@@ -107,7 +109,7 @@ export async function runChecks(db: SupabaseClient, period: string, accounts: Ma
     const done = generated.find((g) => g.generated === p.kind && g.book === p.book);
     if (!done) adj.push(`${GENERATED_LABELS[p.kind]} (${p.book}) not generated yet`);
   }
-  for (const g of generated) if (g.status !== "Approved") adj.push(`${GENERATED_LABELS[g.generated] ?? g.generated} (${g.book}) entry #${g.id} is ${g.status}`);
+  for (const g of generated) if (g.generated !== "closing" && g.status !== "Approved") adj.push(`${GENERATED_LABELS[g.generated as Exclude<typeof g.generated, "closing">]} (${g.book}) entry #${g.id} is ${g.status}`);
   for (const c of (countsRes.data ?? []) as { book: Book; profit_center: string; entry_id: number | null }[]) {
     if (!c.entry_id) adj.push(`Inventory count ${c.book} / ${c.profit_center}: adjustment not generated`);
   }
@@ -186,6 +188,17 @@ export async function runChecks(db: SupabaseClient, period: string, accounts: Ma
     }
   }
   add("cash", "Cash flow closing cash equals balance sheet cash", cashIssues);
+
+  // December: the year is closed to Retained Earnings.
+  if (period.endsWith("-12")) {
+    const { books } = await yearEndStatus(db, env, Number(period.slice(0, 4)));
+    const open = books.filter((b) => b.proposal || b.existing.some((e) => e.status !== "Approved"));
+    add(
+      "year-end",
+      "Year-end closing entries posted and approved",
+      open.map((b) => `${b.book}: ${b.existing.some((e) => e.status !== "Approved") ? "closing entry waiting for approval" : "income and expenses not yet closed to Retained Earnings"}`),
+    );
+  }
 
   // Data quality (for review).
   const quality: string[] = [];

@@ -258,7 +258,7 @@ monthEndRoutes.get("/:period/checks", async (c) => {
   const period = periodParam(c.req.param("period"));
   const db = serviceClient(c.env);
   const [checks, periodRow] = await Promise.all([
-    runChecks(db, period, await accountMap(c.env), todayManila()),
+    runChecks(db, period, await accountMap(c.env), todayManila(), c.env),
     db.from("periods").select("status, closed_at").eq("key", period).maybeSingle(),
   ]);
   dbError(periodRow.error);
@@ -271,7 +271,7 @@ monthEndRoutes.post("/:period/close", async (c) => {
   if (!isOwner(user)) forbidden("Only an Owner closes a month.");
   const period = periodParam(c.req.param("period"));
   const db = serviceClient(c.env);
-  const failing = (await runChecks(db, period, await accountMap(c.env), todayManila())).filter((x) => x.status === "fail");
+  const failing = (await runChecks(db, period, await accountMap(c.env), todayManila(), c.env)).filter((x) => x.status === "fail");
   if (failing.length) return c.json({ error: `Not ready to close: ${failing.map((f) => f.label).join("; ")}.`, failing }, 400);
   dbError((await db.rpc("close_period", { p_user: user.id, p_key: period })).error);
   return c.json({ ok: true });
