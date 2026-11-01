@@ -30,9 +30,36 @@ export interface Registers {
 }
 
 export async function loadRegisters(db: SupabaseClient): Promise<Registers> {
-  const { data, error } = await db.rpc("registers_overview");
+  const [{ data, error }, retired] = await Promise.all([db.rpc("registers_overview"), assetDisposals(db)]);
   dbError(error);
-  return data as Registers;
+  const reg = data as Registers;
+  // A retired asset (its write-off entry in force) is no longer depreciated or in the register totals.
+  return { ...reg, assets: (reg.assets ?? []).map((a) => (retired.has(a.id) ? { ...a, status: "Disposed" } : a)) };
+}
+
+export interface Disposal {
+  entryId: number;
+  status: string;
+  date: string;
+}
+
+/** Write-off entries in force (not rejected, cancelled or reversed), per asset. */
+export async function assetDisposals(db: SupabaseClient): Promise<Map<number, Disposal>> {
+  const { data, error } = await db.from("entries").select("id, status, entry_date, form").not("form->>disposes_asset", "is", null).not("status", "in", "(Rejected,Cancelled)");
+  dbError(error);
+  const ids = (data ?? []).map((e) => e.id as number);
+  const reversed = new Set<number>();
+  if (ids.length) {
+    const r = await db.from("entries").select("reverses_entry_id").in("reverses_entry_id", ids).not("status", "in", "(Rejected,Cancelled)");
+    dbError(r.error);
+    for (const x of r.data ?? []) reversed.add(x.reverses_entry_id as number);
+  }
+  const out = new Map<number, Disposal>();
+  for (const e of data ?? []) {
+    if (reversed.has(e.id)) continue;
+    out.set(Number((e.form as { disposes_asset: number }).disposes_asset), { entryId: e.id, status: e.status, date: e.entry_date });
+  }
+  return out;
 }
 
 export async function loadBooked(db: SupabaseClient, period: string): Promise<Booked> {

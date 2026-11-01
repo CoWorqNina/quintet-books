@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { Fragment, useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 import { ACCUMULATED_DEPRECIATION, accountMatches, DEFAULT_LIFE_MONTHS } from "../../shared/accounts";
 import { buildSchedule } from "../../shared/loans";
 import { formatPeso, fromCents, toCents } from "../../shared/money";
 import type { AppUser, Book } from "../../shared/types";
 import { api } from "../lib/api";
-import { useAccounts, useLoad } from "../lib/data";
+import { todayManila, useAccounts, useEmployees, useLoad } from "../lib/data";
 
 interface Status {
   in_force: boolean;
@@ -23,6 +24,7 @@ interface Asset extends Status {
   depreciated_before_go_live: number;
   booked_since_go_live: number;
   popup: boolean;
+  retired: { entryId: number; status: string; date: string } | null;
 }
 interface Spread extends Status {
   id: number;
@@ -72,6 +74,10 @@ export default function Registers({ user }: { user: AppUser }) {
   const [adding, setAdding] = useState(false);
   const [showAll, setShowAll] = useState(false);
   const live = <T extends Status>(rows: T[] = []) => (showAll ? rows : rows.filter((r) => r.in_force));
+  const [retiring, setRetiring] = useState<number | null>(null);
+  const canRetire = user.role === "Owner" || user.role === "Accountant";
+  // Assets written off (approved) leave the totals; the row stays for the record.
+  const active = (assets: Asset[] = []) => live(assets).filter((a) => a.retired?.status !== "Approved");
 
   return (
     <section className="wide">
@@ -119,8 +125,10 @@ export default function Registers({ user }: { user: AppUser }) {
           <tbody>
             {live(data?.assets).map((a) => {
               const f = assetFigures(a);
+              const gone = a.retired?.status === "Approved";
               return (
-                <tr key={a.id}>
+                <Fragment key={a.id}>
+                <tr className={gone ? "inactive" : ""}>
                   <td>
                     {a.name}
                     {a.popup && <span className="muted"> · pop-ups</span>}
@@ -137,18 +145,45 @@ export default function Registers({ user }: { user: AppUser }) {
                   <td className="num">{peso(f.netNow)}</td>
                   <td className="num">{f.monthsLeft}</td>
                   <td>
-                    <StatusBadge r={a} />
+                    {a.retired ? (
+                      <Link className={`badge ${gone ? "muted-badge" : "info"}`} to={`/journal?entry=${a.retired.entryId}`}>
+                        Retired {a.retired.date} {gone ? "" : `(${a.retired.status})`}
+                      </Link>
+                    ) : (
+                      <>
+                        <StatusBadge r={a} />{" "}
+                        {canRetire && a.in_force && (!a.entry_id || a.entry_status === "Approved") && (
+                          <button className="link" onClick={() => setRetiring(retiring === a.id ? null : a.id)}>
+                            {retiring === a.id ? "Close" : "Retire"}
+                          </button>
+                        )}
+                      </>
+                    )}
                   </td>
                 </tr>
+                {retiring === a.id && (
+                  <tr>
+                    <td colSpan={13}>
+                      <RetireForm
+                        asset={a}
+                        onDone={() => {
+                          setRetiring(null);
+                          reload();
+                        }}
+                      />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               );
             })}
           </tbody>
           <tfoot>
             <tr className="header-row">
-              <td colSpan={5}>Total</td>
+              <td colSpan={5}>Total (in use)</td>
               {(["cost", "monthly", "before", "netGoLive", "since", "netNow"] as const).map((k) => (
                 <td key={k} className="num">
-                  {peso(live(data?.assets).reduce((s, a) => s + assetFigures(a)[k], 0))}
+                  {peso(active(data?.assets).reduce((s, a) => s + assetFigures(a)[k], 0))}
                 </td>
               ))}
               <td colSpan={2} />
@@ -244,6 +279,167 @@ export default function Registers({ user }: { user: AppUser }) {
         );
       })}
     </section>
+  );
+}
+
+interface RetirePreview {
+  figures: { costCents: number; catchUpCents: number; accumulatedCents: number; bookValueCents: number; lossCents: number; gainCents: number; chargeAboveBookCents: number };
+  errors: string[];
+}
+
+/** Write off a broken, lost or sold asset; previews the loss before saving. */
+function RetireForm({ asset, onDone }: { asset: Asset; onDone: () => void }) {
+  const accountList = useAccounts();
+  const employees = useEmployees();
+  const [date, setDate] = useState(todayManila());
+  const [reason, setReason] = useState("");
+  const [employee, setEmployee] = useState("");
+  const [charge, setCharge] = useState("");
+  const [sale, setSale] = useState("");
+  const [saleAccount, setSaleAccount] = useState("");
+  const [preview, setPreview] = useState<RetirePreview | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const body = JSON.stringify({ date, reason, employee: employee || undefined, charge: Number(charge) || 0, sale: Number(sale) || 0, saleAccount: saleAccount || undefined });
+
+  useEffect(() => {
+    const t = setTimeout(() => {
+      api<RetirePreview>(`/registers/assets/${asset.id}/retire?preview=1`, { method: "POST", body })
+        .then(setPreview)
+        .catch(() => setPreview(null));
+    }, 300);
+    return () => clearTimeout(t);
+  }, [body, asset.id]);
+
+  async function save() {
+    if (!confirm(`Retire ${asset.name}? It goes to an Owner for approval.`)) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await api(`/registers/assets/${asset.id}/retire`, { method: "POST", body });
+      onDone();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Could not save");
+    }
+    setBusy(false);
+  }
+
+  const f = preview?.figures;
+  const p = (c: number) => formatPeso(c);
+  return (
+    <div className="row-card">
+      <strong>Retire {asset.name}</strong>
+      <p className="muted">
+        Depreciation runs through the month before it's retired (none in the month it goes). What's left of its value is a loss, reduced by any
+        amount charged to an employee or received from a sale.
+      </p>
+      <div className="grid3">
+        <label>
+          Date it broke / was lost or sold
+          <input type="date" value={date} max={todayManila()} onChange={(e) => setDate(e.target.value)} />
+        </label>
+        <label className="span2">
+          What happened
+          <input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Compressor broke, not worth repairing" />
+        </label>
+        <label>
+          Charge to employee (optional)
+          <select value={employee} onChange={(e) => setEmployee(e.target.value)}>
+            <option value="">No one</option>
+            {employees.map((x) => (
+              <option key={x.id} value={x.id}>
+                {x.name}
+              </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          Amount charged
+          <input type="number" step="0.01" min="0" value={charge} disabled={!employee} onChange={(e) => setCharge(e.target.value)} />
+        </label>
+        <span />
+        <label>
+          Sold for (optional)
+          <input type="number" step="0.01" min="0" value={sale} onChange={(e) => setSale(e.target.value)} />
+        </label>
+        <label>
+          Money received in
+          <select value={saleAccount} disabled={!Number(sale)} onChange={(e) => setSaleAccount(e.target.value)}>
+            <option value="">Choose…</option>
+            {accountList
+              .filter((x) => x.isCashAccount && !x.isHeader && x.active)
+              .map((x) => (
+                <option key={x.code} value={x.code}>
+                  {x.code} {x.name}
+                </option>
+              ))}
+          </select>
+        </label>
+      </div>
+      {f && (
+        <table className="lines">
+          <tbody>
+            <tr>
+              <td>Cost</td>
+              <td className="num">{p(f.costCents)}</td>
+            </tr>
+            {f.catchUpCents > 0 && (
+              <tr>
+                <td>Depreciation still to book through last month</td>
+                <td className="num">{p(f.catchUpCents)}</td>
+              </tr>
+            )}
+            <tr>
+              <td>Accumulated depreciation</td>
+              <td className="num">({p(f.accumulatedCents)})</td>
+            </tr>
+            <tr>
+              <td>
+                <strong>Book value written off</strong>
+              </td>
+              <td className="num">
+                <strong>{p(f.bookValueCents)}</strong>
+              </td>
+            </tr>
+            {Number(charge) > 0 && employee && (
+              <tr>
+                <td>Charged to {employees.find((x) => x.id === employee)?.name} (1244, collected from pay)</td>
+                <td className="num">({p(Math.round(Number(charge) * 100))})</td>
+              </tr>
+            )}
+            {Number(sale) > 0 && (
+              <tr>
+                <td>Received from the sale</td>
+                <td className="num">({p(Math.round(Number(sale) * 100))})</td>
+              </tr>
+            )}
+            {f.lossCents > 0 && (
+              <tr>
+                <td>Loss on disposal (7130)</td>
+                <td className="num">{p(f.lossCents)}</td>
+              </tr>
+            )}
+            {f.gainCents > 0 && (
+              <tr>
+                <td>Gain on sale (7130)</td>
+                <td className="num">{p(f.gainCents)}</td>
+              </tr>
+            )}
+            {f.chargeAboveBookCents > 0 && (
+              <tr>
+                <td>Charge above book value (7150 other income)</td>
+                <td className="num">{p(f.chargeAboveBookCents)}</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      )}
+      {preview?.errors.length ? <p className="muted">{preview.errors.join(" ")}</p> : null}
+      {err && <p className="error">{err}</p>}
+      <button disabled={busy || !preview || preview.errors.length > 0} onClick={save}>
+        {busy ? "Saving…" : "Retire asset"}
+      </button>
+    </div>
   );
 }
 

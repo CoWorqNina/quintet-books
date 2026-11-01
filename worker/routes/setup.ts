@@ -1,12 +1,15 @@
 import { Hono } from "hono";
 import type { Account } from "../../shared/types";
-import { AMORTIZATION_CONTRA } from "../../shared/monthEnd";
-import { isOwner, seesEverything, todayManila } from "../access";
+import { toDbEntry } from "../../shared/entries";
+import { toCents } from "../../shared/money";
+import { AMORTIZATION_CONTRA, bookedKey, disposal } from "../../shared/monthEnd";
+import { checkEntryDate, isOwner, seesEverything, todayManila } from "../access";
 import { REQUIRED_ACCOUNTS } from "../../shared/requiredAccounts";
-import { type AccountFields, clearCache, createRecords, deleteRecord, getAccounts, getProducts, TABLES, updateRecord } from "../airtable";
+import { type AccountFields, clearCache, createRecords, deleteRecord, getAccounts, getParties, getProducts, TABLES, updateRecord } from "../airtable";
 import { badRequest, dbError, forbidden } from "../db";
 import type { AppContext } from "../env";
 import { logJudgment } from "../judgment";
+import { assetDisposals, loadBooked, loadRegisters } from "../monthEnd";
 import { serviceClient } from "../supabase";
 
 // Owner setup: adding and deactivating accounts (kept in Airtable) and the registers
@@ -152,7 +155,7 @@ setup.post("/accounts/:code/remove", async (c) => {
 setup.get("/registers", async (c) => {
   if (!seesEverything(c.get("user"))) forbidden();
   const db = serviceClient(c.env);
-  const { data, error } = await db.rpc("registers_overview");
+  const [{ data, error }, retired] = await Promise.all([db.rpc("registers_overview"), assetDisposals(db)]);
   dbError(error);
   // Depreciation / amortization booked by approved entries since go-live, per register item.
   type Reg = { assets: { id: number; accum_account_code: string }[]; spreads: { id: number; asset_account: string }[] };
@@ -169,9 +172,48 @@ setup.get("/registers", async (c) => {
   const round = (n: number) => Math.round(n * 100) / 100;
   return c.json({
     ...reg,
-    assets: (reg.assets ?? []).map((a) => ({ ...a, booked_since_go_live: round(booked.get(`asset:${a.id}`) ?? 0) })),
+    assets: (reg.assets ?? []).map((a) => ({ ...a, booked_since_go_live: round(booked.get(`asset:${a.id}`) ?? 0), retired: retired.get(a.id) ?? null })),
     spreads: (reg.spreads ?? []).map((x) => ({ ...x, booked_since_go_live: round(booked.get(`spread:${x.id}`) ?? 0) })),
   });
+});
+
+// Retire an asset (broken, lost, sold): a Special entry that books any depreciation still due
+// through last month, takes the asset off the books and records the loss (or gain). Approved by
+// an Owner. With ?preview=1 it only returns the entry.
+setup.post("/registers/assets/:id/retire", async (c) => {
+  const user = c.get("user");
+  if (!seesEverything(user)) forbidden("Only an Owner or the Accountant retires assets.");
+  const id = Number(c.req.param("id"));
+  const preview = c.req.query("preview") === "1";
+  const body = await c.req.json<{ date?: string; reason?: string; employee?: string; charge?: number; saleAccount?: string; sale?: number }>();
+  const date = body.date ?? "";
+  if (!preview) checkEntryDate(date);
+  const db = serviceClient(c.env);
+  const [registers, retired, parties] = await Promise.all([loadRegisters(db), assetDisposals(db), getParties(c.env)]);
+  const asset = (registers.assets ?? []).find((a) => a.id === id);
+  if (!asset || !asset.in_force) badRequest("Unknown asset.");
+  if (asset.entry_id && asset.entry_status !== "Approved") badRequest("The asset's purchase entry isn't approved yet.");
+  const done = retired.get(id);
+  if (done) badRequest(`Already retired in entry #${done.entryId} (${done.status}).`);
+  const employee = body.employee ? parties.find((p) => p.id === body.employee && p.type === "Employee") : undefined;
+  if (body.employee && !employee) badRequest("Choose an employee from the list.");
+  const booked = await loadBooked(db, date.slice(0, 7) || todayManila().slice(0, 7));
+  const accumBooked = -(booked.get(bookedKey(`asset:${id}`, asset.accum_account_code)) ?? 0);
+  const r = disposal(
+    asset,
+    {
+      date,
+      reason: body.reason ?? "",
+      charge: body.charge ? { partyId: employee?.id ?? "", partyName: employee?.name ?? "", cents: toCents(Number(body.charge)) } : null,
+      sale: body.sale ? { account: body.saleAccount ?? "", cents: toCents(Number(body.sale)) } : null,
+    },
+    accumBooked,
+  );
+  if (preview) return c.json(r);
+  if (!r.entry) return c.json({ error: r.errors[0], errors: r.errors }, 400);
+  const { data, error } = await db.rpc("create_entries", { p_user: user.id, p_entries: [{ ...toDbEntry(r.entry), form: { disposes_asset: id } }], p_submit: true });
+  dbError(error);
+  return c.json({ entryIds: data });
 });
 
 // Go-live records: assets, spreads and loans that exist on Oct 31, 2026 (matched by the opening balances).

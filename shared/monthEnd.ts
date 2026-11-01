@@ -342,3 +342,85 @@ export function ownerAllowanceExcess(period: string, lines: AllowanceLine[], all
   }
   return out;
 }
+
+// ----------------------------------------------------------------------------------------------
+// Retiring an asset (broken, lost, sold or given away)
+// ----------------------------------------------------------------------------------------------
+
+export const LOSS_ON_DISPOSAL = "7130";
+export const EMPLOYEE_CHARGES_ABOVE_BOOK = "7150";
+export const RECEIVABLE_DAMAGES = "1244";
+
+export interface DisposalInput {
+  date: string;
+  reason: string;
+  /** Amount charged to an employee who caused the damage or loss (centavos). */
+  charge?: { partyId: string; partyName: string; cents: number } | null;
+  /** Amount received if it was sold, and where the money went (centavos). */
+  sale?: { account: string; cents: number } | null;
+}
+
+export interface DisposalFigures {
+  costCents: number;
+  catchUpCents: number;
+  accumulatedCents: number;
+  bookValueCents: number;
+  lossCents: number;
+  gainCents: number;
+  chargeAboveBookCents: number;
+}
+
+/**
+ * Depreciation runs through the month before the asset is retired (none in the month it goes),
+ * catching up any month not yet booked. The cost and its accumulated depreciation come off the
+ * books; what's left is a loss, reduced by any amount charged to an employee or received from a
+ * sale. A charge above book value is other income; a sale above book value is a gain.
+ */
+export function disposal(asset: AssetRecord, input: DisposalInput, bookedAccumCents: number): { entry: EntryDraft | null; figures: DisposalFigures; errors: string[] } {
+  const errors: string[] = [];
+  if (!input.reason?.trim()) errors.push("Say what happened to the asset.");
+  if (input.date < asset.in_use_date) errors.push("The asset can't be retired before it was put to use.");
+  const cost = toCents(Number(asset.cost));
+  const prev = addMonths(`${input.date.slice(0, 7)}-01`, -1).slice(0, 7);
+  const due = Math.min(cost, scheduledToDate(cost, asset.useful_life_months, monthsThrough(asset.in_use_date, prev)));
+  const done = toCents(Number(asset.depreciated_before_go_live)) + bookedAccumCents;
+  const catchUp = Math.max(0, due - done);
+  const accumulated = Math.min(cost, done + catchUp);
+  const bookValue = cost - accumulated;
+  const charge = Math.max(0, input.charge?.cents ?? 0);
+  const sale = Math.max(0, input.sale?.cents ?? 0);
+  if (charge && !input.charge?.partyId) errors.push("Choose the employee being charged.");
+  if (sale && !input.sale?.account) errors.push("Choose where the sale money went.");
+  const chargeAbove = Math.max(0, charge - bookValue);
+  const left = Math.max(0, bookValue - charge);
+  const gain = Math.max(0, sale - left);
+  const loss = Math.max(0, left - sale);
+  const pc = asset.profit_center;
+  const party = { party_id: `asset:${asset.id}`, party_name: asset.name };
+  const lines: LineDraft[] = [
+    debit(DEPRECIATION_EXPENSE, catchUp, "dispose.depreciation", { profit_center: pc }),
+    credit(asset.accum_account_code, catchUp, "dispose.accum", party),
+    debit(asset.accum_account_code, accumulated, "dispose.accum_off", party),
+    debit(RECEIVABLE_DAMAGES, charge, "dispose.charge", { party_id: input.charge?.partyId ?? null, party_name: input.charge?.partyName ?? null }),
+    debit(input.sale?.account ?? "", sale, "dispose.sale"),
+    debit(LOSS_ON_DISPOSAL, loss, "dispose.loss", { profit_center: pc }),
+    credit(asset.account_code, cost, "dispose.cost", party),
+    credit(EMPLOYEE_CHARGES_ABOVE_BOOK, chargeAbove, "dispose.charge_above", { profit_center: pc === "Shared" ? "GGC" : pc }),
+    credit(LOSS_ON_DISPOSAL, gain, "dispose.gain", { profit_center: pc }),
+  ].filter((l) => l.debitCents || l.creditCents);
+  const entry: EntryDraft = {
+    kind: "Special",
+    transaction_type: null,
+    book: asset.book,
+    profit_center: null,
+    entry_date: input.date,
+    description: `Asset retired: ${asset.name}`,
+    reason: input.reason?.trim() ?? "",
+    lines,
+  };
+  return {
+    entry: errors.length ? null : entry,
+    figures: { costCents: cost, catchUpCents: catchUp, accumulatedCents: accumulated, bookValueCents: bookValue, lossCents: loss, gainCents: gain, chargeAboveBookCents: chargeAbove },
+    errors,
+  };
+}

@@ -5,6 +5,7 @@ Accounting decisions are also recorded in the Airtable Judgment Log.
 
 | Date | Decision | Decided by |
 |---|---|---|
+| 2026-11-01 | Retiring an asset (Registers → Retire): depreciation runs through the month before it goes (none in the month it's retired; any missed months are caught up in the same entry). Cost and accumulated depreciation come off; the rest is Loss on Disposal (7130), reduced by any amount charged to an employee (1244) or received from a sale. A charge above book value is 7150 Other Income; a sale above it is a gain in 7130. A Special entry approved by an Owner; reversing it puts the asset back. | Build |
 | 2026-11-01 | Owner's food allowance: owners may take food at menu price up to ₱3,000 per owner per month as compensation (6135 Owner's Allowance – Food, tagged per owner and profit center). Food above it is moved at month-end to 1255 Receivable from Owners – Food Charges and paid back with #38. Staff food stays a receivable deducted from pay. The daily report's food-charge section lists staff and owners. The limit is set in `shared/config.ts`. | Nina |
 | 2026-11-01 | Removed 7170 Bank Fees (duplicate); use 6740 Bank Charges. | Nina |
 | 2026-11-01 | Year-end closes straight to 3300 Retained Earnings, per book and profit center; 3400 Current Year Earnings stays unused. | Build |

@@ -6,6 +6,7 @@ import {
   type AssetRecord,
   bookedKey,
   depreciation,
+  disposal,
   interestAccrual,
   inventoryAdjustment,
   type LoanRecord,
@@ -148,5 +149,32 @@ describe("owner food allowance", () => {
     const moved = [...lines, food("Kai", "GGC", 0, 600)];
     expect(ownerAllowanceExcess("2026-11", moved, 3000_00, new Map())).toEqual([]);
     expect(ownerAllowanceExcess("2026-11", [...moved, food("Kai", "GGC", 150)], 3000_00, new Map())[0].details[0].cents).toBe(150_00);
+  });
+});
+
+
+describe("retiring an asset", () => {
+  const freezer = { ...fryer, id: 9, name: "Freezer 1", cost: 18000, in_use_date: "2026-04-01", useful_life_months: 24, depreciated_before_go_live: 5250, entry_id: null, entry_status: null };
+  it("broken in November: no November depreciation, remaining book value is a loss", () => {
+    const r = disposal(freezer, { date: "2026-11-20", reason: "Compressor died" }, 0);
+    expect(r.figures).toMatchObject({ catchUpCents: 0, accumulatedCents: 5250_00, bookValueCents: 12750_00, lossCents: 12750_00 });
+    expect(r.entry!.lines.map((l) => [l.account_code, l.debitCents, l.creditCents])).toEqual([
+      ["1592", 5250_00, 0],
+      ["7130", 12750_00, 0],
+      ["1520", 0, 18000_00],
+    ]);
+    expect(isBalanced(r.entry!)).toBe(true);
+  });
+  it("retired in January with December not yet booked: catches up, then charges the employee", () => {
+    const r = disposal(freezer, { date: "2027-01-10", reason: "Dropped", charge: { partyId: "recAna", partyName: "Ana", cents: 2000_00 } }, 750_00);
+    expect(r.figures.catchUpCents).toBe(750_00); // December; November already booked
+    expect(r.figures.bookValueCents).toBe(18000_00 - 5250_00 - 1500_00);
+    expect(r.figures.lossCents).toBe(r.figures.bookValueCents - 2000_00);
+    expect(isBalanced(r.entry!)).toBe(true);
+  });
+  it("sold for more than book value: a gain", () => {
+    const r = disposal({ ...freezer, depreciated_before_go_live: 17250 }, { date: "2026-11-05", reason: "Sold", sale: { account: "1110", cents: 1500_00 } }, 0);
+    expect(r.figures).toMatchObject({ bookValueCents: 750_00, gainCents: 750_00, lossCents: 0 });
+    expect(isBalanced(r.entry!)).toBe(true);
   });
 });
