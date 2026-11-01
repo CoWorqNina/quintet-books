@@ -79,6 +79,12 @@ so password-reset emails link back to the app.
 4. In the app, after go-live: Home → **Opening balances (#43)** for each book, then
    **Registers → Add go-live record** for each asset, prepaid and loan that exists on Oct 31.
 
+## 8. Phase 3 additions
+
+1. Supabase → **SQL Editor** → paste all of `supabase/migrations/0004_ledger_views.sql` → **Run**.
+   It adds read-only report functions (trial balance, general ledger, sub-ledgers). Run it
+   **before** the Phase 3 code is deployed.
+
 ## Moving to a custom domain later
 
 Add the domain in the Worker → **Settings → Domains & Routes**, then update the Supabase

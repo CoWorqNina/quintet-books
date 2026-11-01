@@ -14,6 +14,7 @@ import { adjustments } from "./routes/adjustments";
 import { attachments } from "./routes/attachments";
 import { dailyReports } from "./routes/dailyReports";
 import { entries } from "./routes/entries";
+import { ledger } from "./routes/ledger";
 import { parties } from "./routes/parties";
 import { setup } from "./routes/setup";
 import { serviceClient } from "./supabase";
@@ -65,6 +66,7 @@ app.route("/attachments", attachments);
 app.route("/daily-reports", dailyReports);
 app.route("/entries", adjustments);
 app.route("/entries", entries);
+app.route("/ledger", ledger);
 app.route("/parties", parties);
 app.route("/", setup);
 

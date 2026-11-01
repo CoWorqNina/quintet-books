@@ -114,3 +114,14 @@ td.indent { padding-left: 2rem; }
 .tile { display: flex; flex-direction: column; gap: 0.25rem; padding: 1rem; background: var(--surface); border: 1px solid var(--line); border-radius: 10px; text-decoration: none; color: var(--text); }
 .tile:hover { border-color: var(--accent); }
 table.lines { table-layout: fixed; } table.lines td.num { width: 9.5rem; }
+
+/* Phase 3: ledger views */
+.tabs { display: flex; flex-wrap: wrap; gap: 0.25rem 1.25rem; border-bottom: 1px solid var(--line); margin-bottom: 1rem; }
+.tabs a { color: var(--muted); text-decoration: none; padding: 0.4rem 0; white-space: nowrap; }
+.tabs a.active { color: var(--accent); font-weight: 600; box-shadow: inset 0 -2px 0 var(--highlight); }
+td.wrap { white-space: normal; min-width: 16rem; }
+.center-text { text-align: center; }
+.t-account { display: grid; grid-template-columns: 1fr 1fr; border-top: 2px solid var(--text); }
+.t-account table:first-child { border-right: 2px solid var(--text); }
+.t-account th { text-align: center; background: none; }
+tfoot td { font-weight: 600; }
