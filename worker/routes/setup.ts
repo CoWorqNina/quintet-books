@@ -1,7 +1,8 @@
 import { Hono } from "hono";
 import type { Account } from "../../shared/types";
 import { isOwner, seesEverything } from "../access";
-import { type AccountFields, clearCache, createRecords, getAccounts, TABLES, updateRecord } from "../airtable";
+import { REQUIRED_ACCOUNTS } from "../../shared/requiredAccounts";
+import { type AccountFields, clearCache, createRecords, deleteRecord, getAccounts, getProducts, TABLES, updateRecord } from "../airtable";
 import { badRequest, dbError, forbidden } from "../db";
 import type { AppContext } from "../env";
 import { logJudgment } from "../judgment";
@@ -84,6 +85,63 @@ setup.post("/accounts/:code/active", async (c) => {
   await logJudgment(c.env, {
     category: "Policy decision",
     description: `${active ? "Reactivated" : "Deactivated"} ${account.code} ${account.name}: ${reason.trim()}`,
+    decidedBy: user.fullName,
+    recordedBy: user.fullName,
+  });
+  return c.json({ ok: true });
+});
+
+// Where an account is used: the ledger (any entry, even cancelled ones keep their lines),
+// the registers, reconciliations and Commissary products.
+async function accountUses(env: AppContext["Bindings"], code: string): Promise<string[]> {
+  const db = serviceClient(env);
+  const count = async (table: string, filter: string) => {
+    const { count: n, error } = await db.from(table).select("id", { count: "exact", head: true }).or(filter);
+    dbError(error);
+    return n ?? 0;
+  };
+  const [lines, assets, spreads, loans, recs, products] = await Promise.all([
+    (async () => {
+      const { count: n, error } = await db.from("entry_lines").select("entry_id", { count: "exact", head: true }).eq("account_code", code);
+      dbError(error);
+      return n ?? 0;
+    })(),
+    count("fixed_assets", `account_code.eq.${code},accum_account_code.eq.${code}`),
+    count("spread_schedules", `asset_account.eq.${code},expense_account.eq.${code}`),
+    count("loans", `account_code.eq.${code},interest_account.eq.${code}`),
+    count("reconciliations", `account_code.eq.${code}`),
+    getProducts(env),
+  ]);
+  const uses: string[] = [];
+  if (lines) uses.push(`${lines} entry line${lines > 1 ? "s" : ""}`);
+  if (assets + spreads + loans) uses.push("the registers");
+  if (recs) uses.push("reconciliations");
+  const p = products.filter((x) => x.cogsAccount === code);
+  if (p.length) uses.push(`Commissary products (${p.map((x) => x.name).join(", ")})`);
+  return uses;
+}
+
+// Remove an account from the chart for good. Only for accounts never used anywhere; anything
+// with history is deactivated instead so old entries keep their account.
+setup.post("/accounts/:code/remove", async (c) => {
+  const user = c.get("user");
+  if (!isOwner(user)) forbidden("Only an Owner removes accounts.");
+  const { reason } = await c.req.json<{ reason?: string }>();
+  if (!reason?.trim()) badRequest("Give a reason (it goes to the Judgment Log).");
+  const code = c.req.param("code");
+  const accounts = await getAccounts(c.env);
+  const account = accounts.find((a: Account) => a.code === code);
+  if (!account) badRequest("Unknown account.");
+  if (REQUIRED_ACCOUNTS.has(code)) badRequest(`${code} ${account.name} is used by the app's forms and reports, so it can't be removed.`);
+  const children = accounts.filter((a) => a.parentCode === code);
+  if (children.length) badRequest(`${code} still has ${children.length} account${children.length > 1 ? "s" : ""} under it. Remove or move those first.`);
+  const uses = await accountUses(c.env, code);
+  if (uses.length) badRequest(`${code} ${account.name} is used in ${uses.join(", ")}. Deactivate it instead so that history keeps its account.`);
+  await deleteRecord(c.env, TABLES.accounts, account.id);
+  clearCache("accounts:");
+  await logJudgment(c.env, {
+    category: "Policy decision",
+    description: `Removed account ${code} ${account.name} from the chart (never used): ${reason.trim()}`,
     decidedBy: user.fullName,
     recordedBy: user.fullName,
   });

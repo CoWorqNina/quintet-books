@@ -103,6 +103,10 @@ async function cached<T>(key: string, load: () => Promise<T>, ttlMs = CACHE_TTL_
   return value;
 }
 
+export async function deleteRecord(env: Env, table: string, id: string): Promise<void> {
+  await airtableFetch(env, `${table}/${id}`, { method: "DELETE" });
+}
+
 export function clearCache(prefix = "") {
   for (const key of cache.keys()) if (key.startsWith(prefix)) cache.delete(key);
 }

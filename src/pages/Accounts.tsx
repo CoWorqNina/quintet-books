@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { REQUIRED_ACCOUNTS } from "../../shared/requiredAccounts";
 import type { Account, AppUser } from "../../shared/types";
 import { api } from "../lib/api";
 
@@ -7,6 +8,7 @@ export default function Accounts({ user }: { user: AppUser }) {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState("");
   const [adding, setAdding] = useState(false);
+  const [showInactive, setShowInactive] = useState(false);
   const [version, setVersion] = useState(0);
   const isOwner = user.role === "Owner";
 
@@ -29,15 +31,32 @@ export default function Accounts({ user }: { user: AppUser }) {
 
   const shown = useMemo(() => {
     const q = filter.trim().toLowerCase();
-    if (!accounts || !q) return accounts;
-    return accounts.filter((a) => a.code.includes(q) || a.name.toLowerCase().includes(q));
-  }, [accounts, filter]);
+    if (!accounts) return accounts;
+    return accounts.filter((a) => (showInactive || a.active || a.isHeader) && (!q || a.code.includes(q) || a.name.toLowerCase().includes(q)));
+  }, [accounts, filter, showInactive]);
+  const hasChildren = (a: Account) => !!accounts?.some((x) => x.parentCode === a.code);
+
+  async function remove(a: Account) {
+    const reason = prompt(
+      `Remove ${a.code} ${a.name} from the chart for good?\n\nThis only works if it has never been used. Accounts with history are deactivated instead.\n\nReason (goes to the Judgment Log):`,
+    );
+    if (!reason?.trim()) return;
+    try {
+      await api(`/accounts/${a.code}/remove`, { method: "POST", body: JSON.stringify({ reason }) });
+      setVersion(version + 1);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Could not remove the account");
+    }
+  }
 
   return (
     <section>
       <div className="page-head">
         <h1>Chart of Accounts</h1>
         <input placeholder="Search code or name" value={filter} onChange={(e) => setFilter(e.target.value)} />
+        <label className="inline">
+          <input type="checkbox" checked={showInactive} onChange={(e) => setShowInactive(e.target.checked)} /> Show inactive
+        </label>
         {isOwner && <button onClick={() => setAdding(!adding)}>{adding ? "Close" : "Add account"}</button>}
       </div>
       {adding && accounts && (
@@ -78,11 +97,18 @@ export default function Accounts({ user }: { user: AppUser }) {
                   <td>{a.cashFlowGroup}</td>
                   {isOwner && (
                     <td>
-                      {!a.isHeader && (
-                        <button className="link" onClick={() => toggle(a)}>
-                          {a.active ? "Deactivate" : "Reactivate"}
-                        </button>
-                      )}
+                      <span className="row-links">
+                        {!a.isHeader && (
+                          <button className="link" onClick={() => toggle(a)}>
+                            {a.active ? "Deactivate" : "Reactivate"}
+                          </button>
+                        )}
+                        {!REQUIRED_ACCOUNTS.has(a.code) && !hasChildren(a) && (
+                          <button className="link danger" onClick={() => remove(a)}>
+                            Remove
+                          </button>
+                        )}
+                      </span>
                     </td>
                   )}
                 </tr>
