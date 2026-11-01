@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { Account } from "../../shared/types";
-import { isOwner, seesEverything } from "../access";
+import { AMORTIZATION_CONTRA } from "../../shared/monthEnd";
+import { isOwner, seesEverything, todayManila } from "../access";
 import { REQUIRED_ACCOUNTS } from "../../shared/requiredAccounts";
 import { type AccountFields, clearCache, createRecords, deleteRecord, getAccounts, getProducts, TABLES, updateRecord } from "../airtable";
 import { badRequest, dbError, forbidden } from "../db";
@@ -150,9 +151,27 @@ setup.post("/accounts/:code/remove", async (c) => {
 
 setup.get("/registers", async (c) => {
   if (!seesEverything(c.get("user"))) forbidden();
-  const { data, error } = await serviceClient(c.env).rpc("registers_overview");
+  const db = serviceClient(c.env);
+  const { data, error } = await db.rpc("registers_overview");
   dbError(error);
-  return c.json(data);
+  // Depreciation / amortization booked by approved entries since go-live, per register item.
+  type Reg = { assets: { id: number; accum_account_code: string }[]; spreads: { id: number; asset_account: string }[] };
+  const reg = data as Reg;
+  const codes = [...new Set([...(reg.assets ?? []).map((a) => a.accum_account_code), ...(reg.spreads ?? []).flatMap((x) => [x.asset_account, AMORTIZATION_CONTRA[x.asset_account] ?? x.asset_account])])];
+  const booked = new Map<string, number>();
+  if (codes.length) {
+    const { data: lines, error: le } = await db.rpc("party_lines", { p_accounts: codes, p_to: todayManila() });
+    dbError(le);
+    for (const l of (lines ?? []) as { party_id: string | null; debit: number; credit: number }[]) {
+      if (l.party_id && /^(asset|spread):/.test(l.party_id)) booked.set(l.party_id, (booked.get(l.party_id) ?? 0) + Number(l.credit) - Number(l.debit));
+    }
+  }
+  const round = (n: number) => Math.round(n * 100) / 100;
+  return c.json({
+    ...reg,
+    assets: (reg.assets ?? []).map((a) => ({ ...a, booked_since_go_live: round(booked.get(`asset:${a.id}`) ?? 0) })),
+    spreads: (reg.spreads ?? []).map((x) => ({ ...x, booked_since_go_live: round(booked.get(`spread:${x.id}`) ?? 0) })),
+  });
 });
 
 // Go-live records: assets, spreads and loans that exist on Oct 31, 2026 (matched by the opening balances).

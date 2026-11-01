@@ -21,6 +21,7 @@ interface Asset extends Status {
   in_use_date: string;
   useful_life_months: number;
   depreciated_before_go_live: number;
+  booked_since_go_live: number;
   popup: boolean;
 }
 interface Spread extends Status {
@@ -34,6 +35,7 @@ interface Spread extends Status {
   start_month: string;
   months: number;
   amortized_before_go_live: number;
+  booked_since_go_live: number;
 }
 interface Loan extends Status {
   id: number;
@@ -54,6 +56,16 @@ function StatusBadge({ r }: { r: Status }) {
   return <span className={`badge ${r.entry_status === "Approved" ? "ok" : "info"}`}>{r.entry_status}</span>;
 }
 
+/** Straight-line figures for one asset (pesos): monthly charge, net at go-live, net now, months left. */
+function assetFigures(a: Asset) {
+  const cost = Number(a.cost);
+  const before = Number(a.depreciated_before_go_live);
+  const since = Number(a.booked_since_go_live ?? 0);
+  const monthly = Math.round((cost / a.useful_life_months) * 100) / 100;
+  const netNow = cost - before - since;
+  return { cost, monthly, before, netGoLive: cost - before, since, netNow, monthsLeft: monthly ? Math.max(0, Math.round(netNow / monthly)) : 0 };
+}
+
 /** Fixed Asset Register, prepaid and deferred spreads, and the Loan Tracker. */
 export default function Registers({ user }: { user: AppUser }) {
   const { data, error, reload } = useLoad<{ assets: Asset[]; spreads: Spread[]; loans: Loan[] }>("/registers");
@@ -62,7 +74,7 @@ export default function Registers({ user }: { user: AppUser }) {
   const live = <T extends Status>(rows: T[] = []) => (showAll ? rows : rows.filter((r) => r.in_force));
 
   return (
-    <section>
+    <section className="wide">
       <div className="page-head">
         <h1>Registers</h1>
         <label className="inline">
@@ -92,32 +104,56 @@ export default function Registers({ user }: { user: AppUser }) {
               <th>Asset</th>
               <th>Class</th>
               <th>Tag</th>
-              <th>Cost</th>
               <th>In use</th>
               <th>Life</th>
-              <th>Depreciated before go-live</th>
+              <th className="num">Cost</th>
+              <th className="num">Monthly</th>
+              <th className="num" title="Depreciation up to Oct 31, 2026">To Oct 31</th>
+              <th className="num">Net at go-live</th>
+              <th className="num" title="Depreciation booked since Nov 1, 2026">Since Nov 1</th>
+              <th className="num">Net now</th>
+              <th className="num">Left</th>
               <th />
             </tr>
           </thead>
           <tbody>
-            {live(data?.assets).map((a) => (
-              <tr key={a.id}>
-                <td>
-                  {a.name}
-                  {a.popup && <span className="muted"> · pop-ups</span>}
-                </td>
-                <td>{a.account_code}</td>
-                <td>{a.profit_center}</td>
-                <td className="num">{peso(a.cost)}</td>
-                <td>{a.in_use_date}</td>
-                <td>{a.useful_life_months} mo</td>
-                <td className="num">{peso(a.depreciated_before_go_live)}</td>
-                <td>
-                  <StatusBadge r={a} />
-                </td>
-              </tr>
-            ))}
+            {live(data?.assets).map((a) => {
+              const f = assetFigures(a);
+              return (
+                <tr key={a.id}>
+                  <td>
+                    {a.name}
+                    {a.popup && <span className="muted"> · pop-ups</span>}
+                  </td>
+                  <td>{a.account_code}</td>
+                  <td>{a.profit_center}</td>
+                  <td>{a.in_use_date}</td>
+                  <td>{a.useful_life_months}m</td>
+                  <td className="num">{peso(a.cost)}</td>
+                  <td className="num">{peso(f.monthly)}</td>
+                  <td className="num">{peso(a.depreciated_before_go_live)}</td>
+                  <td className="num">{peso(f.netGoLive)}</td>
+                  <td className="num">{peso(a.booked_since_go_live)}</td>
+                  <td className="num">{peso(f.netNow)}</td>
+                  <td className="num">{f.monthsLeft}</td>
+                  <td>
+                    <StatusBadge r={a} />
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
+          <tfoot>
+            <tr className="header-row">
+              <td colSpan={5}>Total</td>
+              {(["cost", "monthly", "before", "netGoLive", "since", "netNow"] as const).map((k) => (
+                <td key={k} className="num">
+                  {peso(live(data?.assets).reduce((s, a) => s + assetFigures(a)[k], 0))}
+                </td>
+              ))}
+              <td colSpan={2} />
+            </tr>
+          </tfoot>
         </table>
       </div>
 
@@ -130,31 +166,43 @@ export default function Registers({ user }: { user: AppUser }) {
               <th>Kind</th>
               <th>Accounts</th>
               <th>Tag</th>
-              <th>Total</th>
               <th>From</th>
               <th>Months</th>
-              <th>Amortized before go-live</th>
+              <th className="num">Total</th>
+              <th className="num">Monthly</th>
+              <th className="num" title="Amortization up to Oct 31, 2026">To Oct 31</th>
+              <th className="num">Net at go-live</th>
+              <th className="num" title="Amortization booked since Nov 1, 2026">Since Nov 1</th>
+              <th className="num">Net now</th>
               <th />
             </tr>
           </thead>
           <tbody>
-            {live(data?.spreads).map((s) => (
-              <tr key={s.id}>
-                <td>{s.name}</td>
-                <td>{s.kind}</td>
-                <td>
-                  {s.asset_account} → {s.expense_account}
-                </td>
-                <td>{s.profit_center}</td>
-                <td className="num">{peso(s.total)}</td>
-                <td>{s.start_month.slice(0, 7)}</td>
-                <td>{s.months}</td>
-                <td className="num">{peso(s.amortized_before_go_live)}</td>
-                <td>
-                  <StatusBadge r={s} />
-                </td>
-              </tr>
-            ))}
+            {live(data?.spreads).map((s) => {
+              const total = Number(s.total);
+              const before = Number(s.amortized_before_go_live);
+              return (
+                <tr key={s.id}>
+                  <td>{s.name}</td>
+                  <td>{s.kind}</td>
+                  <td>
+                    {s.asset_account} → {s.expense_account}
+                  </td>
+                  <td>{s.profit_center}</td>
+                  <td>{s.start_month.slice(0, 7)}</td>
+                  <td>{s.months}</td>
+                  <td className="num">{peso(total)}</td>
+                  <td className="num">{peso(Math.round((total / s.months) * 100) / 100)}</td>
+                  <td className="num">{peso(before)}</td>
+                  <td className="num">{peso(total - before)}</td>
+                  <td className="num">{peso(s.booked_since_go_live)}</td>
+                  <td className="num">{peso(total - before - s.booked_since_go_live)}</td>
+                  <td>
+                    <StatusBadge r={s} />
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
