@@ -61,7 +61,7 @@ Each phase ends with something usable and tested before the next one starts.
 - Not yet: the "Cash" check (cash flow closing = balance sheet cash) arrives with the Cash Flow
   Statement in Phase 5
 
-## Phase 5 — Statements and reports (built; run `supabase/migrations/0006_statements.sql`)
+## Phase 5 — Statements and reports (done, live)
 - Income Statement: monthly and year to date (GGC | The Nest | Shared | Total), month by month
   with YTD and % of sales, and this month vs last month vs YTD; views for the whole business,
   GGC as a whole, The Nest, Store book and Commissary book
