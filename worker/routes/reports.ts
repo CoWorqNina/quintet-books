@@ -10,7 +10,9 @@ import { getAccounts, listAll, TABLES } from "../airtable";
 import { runChecks } from "../checks";
 import { badRequest, dbError, forbidden } from "../db";
 import type { AppContext } from "../env";
-import { loadRegisters } from "../monthEnd";
+import { OWNER_FOOD_ALLOWANCE_CENTS } from "../../shared/config";
+import { ownerFoodSummary, RECEIVABLE_OWNER_FOOD } from "../../shared/monthEnd";
+import { loadRegisters, ownerFoodLines } from "../monthEnd";
 import { serviceClient } from "../supabase";
 import { cashLines, dayBefore, loansDueWithinYear, monthLabel, prevPeriod, statementTotals, status, sumBalances, totalsAt } from "./statements";
 
@@ -109,6 +111,26 @@ reports.get("/management", async (c) => {
       };
     });
 
+  // 4b. Owner's food allowance for the month
+  const [food, owedLines] = await Promise.all([ownerFoodLines(db, period), db.rpc("party_lines", { p_accounts: [RECEIVABLE_OWNER_FOOD], p_to: asOf })]);
+  dbError(owedLines.error);
+  const owed = new Map<string, number>();
+  for (const l of (owedLines.data ?? []) as { party_name: string | null; debit: number; credit: number }[]) {
+    const k = l.party_name ?? "(no owner)";
+    owed.set(k, (owed.get(k) ?? 0) + toCents(Number(l.debit)) - toCents(Number(l.credit)));
+  }
+  const allowance = ownerFoodSummary(food, OWNER_FOOD_ALLOWANCE_CENTS).map((x) => ({
+    owner: x.owner,
+    takenCents: x.takenCents,
+    allowanceCents: OWNER_FOOD_ALLOWANCE_CENTS,
+    chargedBackCents: x.movedCents,
+    stillAboveCents: x.excessCents,
+    owedCents: owed.get(x.owner) ?? 0,
+  }));
+  for (const [owner, owedCents] of owed) {
+    if (owedCents && !allowance.some((a) => a.owner === owner)) allowance.push({ owner, takenCents: 0, allowanceCents: OWNER_FOOD_ALLOWANCE_CENTS, chargedBackCents: 0, stillAboveCents: 0, owedCents });
+  }
+
   // 5. Ratios: this month and rolling 3 months
   const flows3 = cashFlows(cash3, accounts, cash, books);
   const debtService = -((flows.get("loans") ?? 0) + (flows.get("interest") ?? 0));
@@ -148,9 +170,11 @@ reports.get("/management", async (c) => {
     ...fails.flatMap((f) => f.details.map((d) => `${f.label}: ${d}`)),
     ...loans.filter((l) => l.overdue).map((l) => `${l.name}: ${l.overdue} installment${l.overdue > 1 ? "s" : ""} overdue`),
     ...(keyRatios.runwayWeeks !== null && keyRatios.runwayWeeks < 4 ? [`Cash runway is only ${keyRatios.runwayWeeks} weeks`] : []),
+    ...allowance.filter((a) => a.stillAboveCents).map((a) => `${a.owner} took ${formatPeso(a.stillAboveCents)} of food above the allowance; charge it back at month-end`),
   ];
   const openItems = [
     ...(pending.count ? [`${pending.count} entries waiting for approval`] : []),
+    ...allowance.filter((a) => a.owedCents > 0).map((a) => `${a.owner} owes ${formatPeso(a.owedCents)} for food above the allowance (collect with #38)`),
     ...(periods.data ?? []).map((p) => `${p.key} is not yet closed`),
     ...checks.filter((x) => x.status === "warn").flatMap((x) => x.details.map((d) => `${x.label}: ${d}`)),
   ];
@@ -166,6 +190,7 @@ reports.get("/management", async (c) => {
     cashFlow: { openingCents: openingCash, closingCents: closingCash, lines: cashFlow },
     cogs,
     loans,
+    allowance,
     ratios: keyRatios,
     judgment,
     redFlags,

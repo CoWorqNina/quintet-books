@@ -18,13 +18,14 @@ export const INVENTORY_ADJUSTMENT = "5199";
 /** Deferred charges are reduced through their own accumulated amortization account. */
 export const AMORTIZATION_CONTRA: Record<string, string> = { "1610": "1615", "1620": "1625" };
 
-export type GeneratedKind = "depreciation" | "amortization" | "interest" | "thirteenth" | "inventory";
+export type GeneratedKind = "depreciation" | "amortization" | "interest" | "thirteenth" | "inventory" | "allowance";
 export const GENERATED_LABELS: Record<GeneratedKind, string> = {
   depreciation: "Depreciation",
   amortization: "Amortization",
   interest: "Interest accrual",
   thirteenth: "13th month accrual",
   inventory: "Inventory adjustment",
+  allowance: "Owner food above allowance",
 };
 
 interface InForce {
@@ -103,7 +104,9 @@ function adjusting(kind: GeneratedKind, book: Book, period: string, lines: LineD
       profit_center: null,
       entry_date: monthEnd(period),
       description: `${GENERATED_LABELS[kind]}, ${period}`,
-      reason: `Month-end ${GENERATED_LABELS[kind].toLowerCase()} generated from the ${kind === "thirteenth" ? "payroll entries" : kind === "inventory" ? "inventory count" : "registers"}`,
+      reason: `Month-end ${GENERATED_LABELS[kind].toLowerCase()} generated from the ${
+        kind === "thirteenth" ? "payroll entries" : kind === "inventory" ? "inventory count" : kind === "allowance" ? "owners' food charges" : "registers"
+      }`,
       lines: kept,
     },
   };
@@ -269,4 +272,73 @@ export function inventoryAdjustment(
   const previousTotal = previous.reduce((s, l) => s + countValue(l), 0);
   move("Difference between the ledger and the last count", previousTotal - ledgerCents);
   return adjusting("inventory", book, period, lines, details);
+}
+
+export const OWNER_FOOD_ALLOWANCE = "6135";
+export const RECEIVABLE_OWNER_FOOD = "1255";
+
+/** Approved Owner's Allowance – Food lines for the month (from the general ledger). */
+export interface AllowanceLine {
+  book: Book;
+  party_name: string | null;
+  profit_center: ProfitCenter | null;
+  debit: number | string;
+  credit: number | string;
+}
+
+export interface OwnerFoodSummary {
+  owner: string;
+  /** Food taken at menu price this month. */
+  takenCents: number;
+  /** Already moved to the owner's receivable this month. */
+  movedCents: number;
+  /** Still above the allowance and not yet moved. */
+  excessCents: number;
+  byPc: Map<ProfitCenter, number>;
+}
+
+/** Per owner: food taken this month, what is already charged back, and what is still above the allowance. */
+export function ownerFoodSummary(lines: AllowanceLine[], allowanceCents: number): OwnerFoodSummary[] {
+  const by = new Map<string, OwnerFoodSummary>();
+  for (const l of lines) {
+    const owner = l.party_name ?? "(no owner)";
+    const s = by.get(owner) ?? { owner, takenCents: 0, movedCents: 0, excessCents: 0, byPc: new Map() };
+    const d = toCents(Number(l.debit));
+    const c = toCents(Number(l.credit));
+    s.takenCents += d;
+    s.movedCents += c;
+    if (d) add(s.byPc, l.profit_center ?? "GGC", d);
+    by.set(owner, s);
+  }
+  for (const s of by.values()) s.excessCents = Math.max(0, s.takenCents - s.movedCents - allowanceCents);
+  return [...by.values()].sort((a, b) => a.owner.localeCompare(b.owner));
+}
+
+/**
+ * Moves each owner's food above the monthly allowance out of Owner's Allowance into
+ * Receivable from Owners – Food Charges, split across profit centers in proportion to where
+ * the food was taken.
+ */
+export function ownerAllowanceExcess(period: string, lines: AllowanceLine[], allowanceCents: number, ownerIds: Map<string, string>): Generated[] {
+  const out: Generated[] = [];
+  for (const book of books(lines)) {
+    const entryLines: LineDraft[] = [];
+    const details: Generated["details"] = [];
+    for (const s of ownerFoodSummary(lines.filter((l) => l.book === book), allowanceCents)) {
+      if (!s.excessCents) continue;
+      const party = { party_id: ownerIds.get(s.owner) ?? null, party_name: s.owner };
+      const pcs = [...s.byPc].filter(([, v]) => v > 0);
+      let left = s.excessCents;
+      pcs.forEach(([pc, taken], i) => {
+        const part = i === pcs.length - 1 ? left : Math.round((s.excessCents * taken) / s.takenCents);
+        left -= part;
+        entryLines.push(credit(OWNER_FOOD_ALLOWANCE, part, "gen.allowance", { ...party, profit_center: pc }));
+      });
+      entryLines.push(debit(RECEIVABLE_OWNER_FOOD, s.excessCents, "gen.receivable", party));
+      details.push({ label: `${s.owner}: took ${(s.takenCents / 100).toFixed(2)}, allowance ${(allowanceCents / 100).toFixed(2)}`, cents: s.excessCents });
+    }
+    const g = adjusting("allowance", book, period, entryLines, details);
+    if (g) out.push(g);
+  }
+  return out;
 }

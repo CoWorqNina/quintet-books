@@ -237,10 +237,46 @@ export const ownerMoneyOut = ownerTemplate(
   (o, amt, bank) => [debit(ADVANCES_TO_OWNERS, amt, "37.advance", o), credit(bank, amt, "37.bank")],
   (n) => `Advance to ${n}`,
 );
-export const ownerAdvanceReturned = ownerTemplate(
-  38,
-  "Owner Advance Returned",
-  true,
-  (o, amt, bank) => [debit(bank, amt, "38.bank"), credit(ADVANCES_TO_OWNERS, amt, "38.advance", o)],
-  (n) => `Advance returned by ${n}`,
-);
+export const RECEIVABLE_OWNER_FOOD = "1255";
+
+// Repays an advance (1250) or food taken above the monthly allowance (1255).
+export const ownerAdvanceReturned: Template = {
+  ...ownerTemplate(38, "Owner Advance / Food Charges Repaid", true, () => [], () => ""),
+  fields: [
+    dateField,
+    { name: "owner", label: "Owner", type: "party", partyType: "Owner", required: true },
+    {
+      name: "repays",
+      label: "Paying back",
+      type: "select",
+      required: true,
+      options: [
+        { value: ADVANCES_TO_OWNERS, label: "An advance (money taken out)" },
+        { value: RECEIVABLE_OWNER_FOOD, label: "Food above the monthly allowance" },
+      ],
+    },
+    { name: "amount", label: "Amount", type: "money", required: true },
+    { name: "bank", label: "Received in (bank / e-wallet)", type: "account", filter: "bank", required: true },
+    { name: "reference", label: "Reference", type: "text", required: true },
+    { name: "proof", label: "Proof", type: "attachment" },
+  ],
+  build(v, ctx) {
+    const errors: string[] = [];
+    requireFields(this.fields, v, ctx, errors);
+    const owner = checkParty(str(v.owner), "Owner", "Owner", ctx, errors);
+    checkAccount(str(v.bank), "bank", "Bank / e-wallet", ctx, errors);
+    const food = str(v.repays) === RECEIVABLE_OWNER_FOOD;
+    const amount = cents(v.amount);
+    return result(
+      errors,
+      makeEntry(
+        ctx,
+        v,
+        38,
+        `${food ? "Food charges above allowance" : "Advance"} repaid by ${owner?.name ?? "owner"}`,
+        [debit(str(v.bank), amount, "38.bank"), credit(food ? RECEIVABLE_OWNER_FOOD : ADVANCES_TO_OWNERS, amount, "38.advance", partyExtras(owner))],
+        { source_document: str(v.reference), attachments: attachmentsOf(v.proof) },
+      ),
+    );
+  },
+};

@@ -5,6 +5,8 @@ Accounting decisions are also recorded in the Airtable Judgment Log.
 
 | Date | Decision | Decided by |
 |---|---|---|
+| 2026-11-01 | Owner's food allowance: owners may take food at menu price up to ₱3,000 per owner per month as compensation (6135 Owner's Allowance – Food, tagged per owner and profit center). Food above it is moved at month-end to 1255 Receivable from Owners – Food Charges and paid back with #38. Staff food stays a receivable deducted from pay. The daily report's food-charge section lists staff and owners. The limit is set in `shared/config.ts`. | Nina |
+| 2026-11-01 | Removed 7170 Bank Fees (duplicate); use 6740 Bank Charges. | Nina |
 | 2026-11-01 | Year-end closes straight to 3300 Retained Earnings, per book and profit center; 3400 Current Year Earnings stays unused. | Build |
 | 2026-11-01 | Management report "next payroll" = half of the month's net pay (two pay periods); cash runway = cash ÷ average weekly operating spending over the last 3 months. | Build |
 | 2026-11-01 | Statement formats approved: Income Statement monthly, YTD, month by month, and this month vs YTD; Balance Sheet vs prior month-end. | Nina |

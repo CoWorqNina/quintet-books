@@ -21,7 +21,9 @@ import { seesEverything, todayManila } from "../access";
 import { getAccounts } from "../airtable";
 import { badRequest, dbError, forbidden } from "../db";
 import type { AppContext } from "../env";
-import { loadRegisters } from "../monthEnd";
+import { OWNER_FOOD_ALLOWANCE_CENTS } from "../../shared/config";
+import { ownerFoodSummary } from "../../shared/monthEnd";
+import { loadRegisters, ownerFoodLines } from "../monthEnd";
 import { serviceClient } from "../supabase";
 
 // Read-only accounting cycle views and sub-ledgers (Owner and Accountant).
@@ -189,12 +191,25 @@ ledger.get("/sub/:kind", async (c) => {
 
   if (kind === "owners") {
     // Owner loans (we owe them) and owner advances (they owe us) are never netted.
-    const lines = await partyLines(c.env, ["2260", "1250"], asOf, book);
+    const [lines, food] = await Promise.all([partyLines(c.env, ["2260", "1250", "1255"], asOf, book), ownerFoodLines(serviceClient(c.env), asOf.slice(0, 7))]);
     const per = (code: string, normal: "debit" | "credit") =>
       [...groupBy(lines.filter((l) => l.account_code === code), partyKey).values()]
         .map((ls) => ({ party: ls[0].party_name ?? "(no owner)", balanceCents: balance(ls, normal) }))
         .filter((p) => p.balanceCents);
-    return c.json({ asOf, loans: per("2260", "credit"), advances: per("1250", "debit") });
+    // Food allowance for the month of the as-of date.
+    const owed = new Map(per("1255", "debit").map((p) => [p.party, p.balanceCents]));
+    const allowance = ownerFoodSummary(food.filter((l) => !book || l.book === book), OWNER_FOOD_ALLOWANCE_CENTS).map((s) => ({
+      owner: s.owner,
+      takenCents: s.takenCents,
+      allowanceCents: OWNER_FOOD_ALLOWANCE_CENTS,
+      chargedBackCents: s.movedCents,
+      stillAboveCents: s.excessCents,
+      owedCents: owed.get(s.owner) ?? 0,
+    }));
+    for (const [owner, owedCents] of owed) {
+      if (!allowance.some((a) => a.owner === owner)) allowance.push({ owner, takenCents: 0, allowanceCents: OWNER_FOOD_ALLOWANCE_CENTS, chargedBackCents: 0, stillAboveCents: 0, owedCents });
+    }
+    return c.json({ asOf, month: asOf.slice(0, 7), loans: per("2260", "credit"), advances: per("1250", "debit"), allowance });
   }
 
   if (kind === "reimbursements") {

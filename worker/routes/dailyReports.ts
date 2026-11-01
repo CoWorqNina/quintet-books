@@ -50,8 +50,10 @@ async function prepare(env: Env, user: AppUser, body: DailyReportInput) {
       };
     }),
     foodCharges: (Array.isArray(body.foodCharges) ? body.foodCharges : []).map((f, i) => {
-      const e = employee(f.employeeId, `Food charge ${i + 1}`);
-      return { employeeId: e?.id ?? "", employeeName: e?.name ?? "", amount: f.amount };
+      // Owners are charged to their food allowance; everyone else must be an active employee.
+      const owner = parties.find((p) => p.id === f.employeeId && p.type === "Owner" && p.active);
+      const e = owner ?? employee(f.employeeId, `Food charge ${i + 1}`);
+      return { employeeId: e?.id ?? "", employeeName: e?.name ?? "", amount: f.amount, owner: !!owner };
     }),
     attachments: cleanAttachments(body.attachments),
     notes: typeof body.notes === "string" ? body.notes.slice(0, 2000) : undefined,

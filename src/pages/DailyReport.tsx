@@ -9,7 +9,7 @@ import { GO_LIVE_DATE } from "../../shared/config";
 import { EntryPreview } from "../components/EntryPreview";
 import { AttachmentPicker, EmployeeSelect, ExpenseAccountSelect, MoneyInput } from "../components/inputs";
 import { api } from "../lib/api";
-import { todayManila, useAccounts, useEmployees } from "../lib/data";
+import { todayManila, useAccounts, useEmployees, useParties } from "../lib/data";
 
 type Num = string;
 interface PaidOutRow extends Omit<PaidOut, "amount" | "quantity" | "unitPrice"> {
@@ -48,6 +48,7 @@ export default function DailyReport({ user }: { user: AppUser }) {
   const accountList = useAccounts();
   const accounts = useMemo(() => new Map(accountList.map((a) => [a.code, a])), [accountList]);
   const employees = useEmployees(profitCenter);
+  const owners = useParties().filter((p) => p.type === "Owner" && p.active);
   const cash = cashAccountsFor(profitCenter);
 
   const input: DailyReportInput = {
@@ -81,7 +82,7 @@ export default function DailyReport({ user }: { user: AppUser }) {
       quantity: p.quantity === "" ? null : +p.quantity,
       unitPrice: p.unitPrice === "" ? null : +p.unitPrice,
     })),
-    foodCharges: foodCharges.map((f) => ({ ...f, amount: +f.amount || 0 })),
+    foodCharges: foodCharges.map((f) => ({ ...f, amount: +f.amount || 0, owner: owners.some((o) => o.id === f.employeeId) })),
     attachments: photos,
     notes,
   };
@@ -334,16 +335,40 @@ export default function DailyReport({ user }: { user: AppUser }) {
 
       {toCents(pos.foodCharges) > 0 && (
         <div className="card">
-          <h2>4. Food charges by employee</h2>
+          <h2>4. Food charges by person</h2>
+          <p className="muted">
+            Staff food is deducted from their pay. Owner food counts against their ₱3,000 monthly food allowance; anything above it becomes
+            money the owner pays back.
+          </p>
           {foodCharges.map((fc, i) => (
             <div key={i} className="grid3">
               <label>
-                Employee
-                <EmployeeSelect
-                  employees={employees}
+                Charged to
+                <select
                   value={fc.employeeId}
-                  onChange={(id, name) => setFoodCharges(foodCharges.map((x, j) => (j === i ? { ...x, employeeId: id, employeeName: name } : x)))}
-                />
+                  onChange={(e) => {
+                    const p = [...employees, ...owners].find((x) => x.id === e.target.value);
+                    setFoodCharges(foodCharges.map((x, j) => (j === i ? { ...x, employeeId: p?.id ?? "", employeeName: p?.name ?? "" } : x)));
+                  }}
+                >
+                  <option value="">Choose…</option>
+                  <optgroup label="Staff (deducted from pay)">
+                    {employees.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                  {owners.length > 0 && (
+                    <optgroup label="Owners (food allowance)">
+                      {owners.map((p) => (
+                        <option key={p.id} value={p.id}>
+                          {p.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
               </label>
               <label>
                 Amount (menu price)
@@ -359,7 +384,7 @@ export default function DailyReport({ user }: { user: AppUser }) {
             className="secondary"
             onClick={() => setFoodCharges([...foodCharges, { employeeId: "", employeeName: "", amount: "" }])}
           >
-            + Add employee
+            + Add person
           </button>
         </div>
       )}

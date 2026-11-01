@@ -1402,5 +1402,41 @@
   "isCashAccount": false,
   "active": true,
   "description": null
+ },
+ {
+  "id": "rec6135",
+  "code": "6135",
+  "name": "Owner's Allowance – Food",
+  "type": "Operating Expense",
+  "normalBalance": "Dr",
+  "book": "Both",
+  "profitCenterRule": "GGC or The Nest (per line)",
+  "subLedger": "Per owner",
+  "cashFlowGroup": "Operating",
+  "statement": "Income Statement",
+  "statementLine": "Owner's Allowance – Food",
+  "parentCode": "6000",
+  "isHeader": false,
+  "isCashAccount": false,
+  "active": true,
+  "description": "Owner food at menu price, up to the monthly allowance"
+ },
+ {
+  "id": "rec1255",
+  "code": "1255",
+  "name": "Receivable from Owners – Food Charges",
+  "type": "Asset",
+  "normalBalance": "Dr",
+  "book": "Both",
+  "profitCenterRule": "n/a",
+  "subLedger": "Per owner",
+  "cashFlowGroup": "Financing",
+  "statement": "Balance Sheet",
+  "statementLine": "Receivables",
+  "parentCode": "1200",
+  "isHeader": false,
+  "isCashAccount": false,
+  "active": true,
+  "description": "Owner food above the monthly allowance, to be paid back"
  }
 ]

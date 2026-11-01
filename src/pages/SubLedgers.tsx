@@ -17,7 +17,7 @@ const KINDS = [
   { key: "ap", label: "Accounts payable" },
   { key: "employees", label: "Employee receivables" },
   { key: "loans", label: "Loans & interest payable" },
-  { key: "owners", label: "Owner loans & advances" },
+  { key: "owners", label: "Owners: loans, advances, food allowance" },
   { key: "reimbursements", label: "Reimbursements" },
   { key: "clearing", label: "Card / Grab / Foodpanda" },
 ];
@@ -311,9 +311,68 @@ function Loans({ data }: { data: { loans: LoanRow[]; untaggedInterestCents: numb
   );
 }
 
-function Owners({ data }: { data: { loans: { party: string; balanceCents: number }[]; advances: { party: string; balanceCents: number }[] } }) {
+export interface AllowanceRow {
+  owner: string;
+  takenCents: number;
+  allowanceCents: number;
+  chargedBackCents: number;
+  stillAboveCents: number;
+  owedCents: number;
+}
+
+/** Owner's food allowance for one month: taken, allowance, charged back, still to charge, and what each owner owes. */
+export function AllowanceTable({ rows, month }: { rows: AllowanceRow[]; month: string }) {
+  return (
+    <div className="card">
+      <h2>Owner's food allowance – {month}</h2>
+      <p className="muted">
+        Food at menu price, from the daily reports. Anything above the allowance is charged back at month-end (Month-end → Adjusting entries)
+        and paid back with #38.
+      </p>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Owner</th>
+              <th className="num">Food taken</th>
+              <th className="num">Allowance</th>
+              <th className="num">Above allowance</th>
+              <th className="num">Charged back</th>
+              <th className="num">Owed to GGC (all months)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((r) => (
+              <tr key={r.owner}>
+                <td>{r.owner}</td>
+                <td className="num">{peso(r.takenCents)}</td>
+                <td className="num">{peso(r.allowanceCents)}</td>
+                <td className={`num ${r.takenCents > r.allowanceCents ? "error" : ""}`}>{peso(Math.max(0, r.takenCents - r.allowanceCents))}</td>
+                <td className="num">
+                  {peso(r.chargedBackCents)}
+                  {r.stillAboveCents > 0 && <span className="badge warn">{peso(r.stillAboveCents)} still to charge</span>}
+                </td>
+                <td className="num">{peso(r.owedCents)}</td>
+              </tr>
+            ))}
+            {!rows.length && (
+              <tr>
+                <td className="muted" colSpan={6}>
+                  No owner food charged this month.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function Owners({ data }: { data: { month: string; loans: { party: string; balanceCents: number }[]; advances: { party: string; balanceCents: number }[]; allowance: AllowanceRow[] } }) {
   return (
     <>
+      <AllowanceTable rows={data.allowance} month={data.month} />
       <p className="muted">Shown separately and never netted: loans are what the business owes each owner; advances are what each owner owes the business.</p>
       <div className="grid2">
         <PartyTable title="Loans from owners (2260)" rows={data.loans} empty="No owner loans." />

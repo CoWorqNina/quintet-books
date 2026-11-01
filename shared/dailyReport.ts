@@ -34,9 +34,11 @@ export interface CashIn {
 }
 
 export interface FoodCharge {
+  /** An employee (charged to their receivable, deducted from pay) or an owner (Owner's Allowance). */
   employeeId: string;
   employeeName: string;
   amount: number;
+  owner?: boolean;
 }
 
 export interface DailyReportInput {
@@ -207,25 +209,28 @@ export function buildDailyReport(
     }),
   );
 
-  // #6 Staff food charges, one receivable line per employee
+  // #6 Food charges: employees owe it (deducted from pay); owners use their monthly food
+  // allowance (anything above it moves to a receivable at month-end).
   const chargeTotal = sumCents(input.foodCharges.map((f) => c(f.amount)));
   if (chargeTotal !== pos.foodCharges) {
     errors.push(
       `Food charges per employee add up to ${formatPeso(chargeTotal)} but the POS shows ${formatPeso(pos.foodCharges)}.`,
     );
   }
-  if (input.foodCharges.some((f) => !f.employeeId)) errors.push("Choose the employee for every food charge.");
+  if (input.foodCharges.some((f) => !f.employeeId)) errors.push("Choose who to charge for every food charge.");
   entries.push(
     finishEntry({
       ...base,
       transaction_type: 6,
-      description: `Staff food charges ${date}`,
+      description: `Staff and owner food charges ${date}`,
       lines: [
         ...input.foodCharges.map((f) =>
-          debit(ACCOUNTS.receivableFoodCharges, c(f.amount), "6.receivable", {
-            party_id: f.employeeId,
-            party_name: f.employeeName,
-          }),
+          f.owner
+            ? debit(ACCOUNTS.ownerFoodAllowance, c(f.amount), "6.allowance", { party_id: f.employeeId, party_name: f.employeeName, ...tagged })
+            : debit(ACCOUNTS.receivableFoodCharges, c(f.amount), "6.receivable", {
+                party_id: f.employeeId,
+                party_name: f.employeeName,
+              }),
         ),
         credit(ACCOUNTS.salesStaffCharges, chargeTotal, "6.sales", tagged),
       ],

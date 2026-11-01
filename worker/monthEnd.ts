@@ -7,15 +7,21 @@ import {
   bookedKey,
   depreciation,
   type Generated,
+  type AllowanceLine,
   type GeneratedKind,
+  OWNER_FOOD_ALLOWANCE,
+  ownerAllowanceExcess,
   interestAccrual,
   type LoanRecord,
   type SpreadRecord,
   thirteenthMonth,
 } from "../shared/monthEnd";
+import { OWNER_FOOD_ALLOWANCE_CENTS } from "../shared/config";
 import { toCents } from "../shared/money";
 import type { Book, ProfitCenter } from "../shared/types";
+import { getParties } from "./airtable";
 import { dbError } from "./db";
+import type { Env } from "./env";
 
 export interface Registers {
   assets: (AssetRecord & { cost: number })[];
@@ -56,19 +62,30 @@ export async function existingGenerated(db: SupabaseClient, period: string): Pro
 }
 
 /** What the app would generate for the month (inventory comes from the counts). */
-export async function proposals(db: SupabaseClient, period: string): Promise<Generated[]> {
-  const [registers, booked, gross] = await Promise.all([
+export async function proposals(db: SupabaseClient, period: string, env: Env): Promise<Generated[]> {
+  const [registers, booked, gross, food, parties] = await Promise.all([
     loadRegisters(db),
     loadBooked(db, period),
     db.rpc("payroll_gross", { p_from: `${period}-01`, p_to: monthEnd(period) }),
+    ownerFoodLines(db, period),
+    getParties(env),
   ]);
   dbError(gross.error);
+  const ownerIds = new Map(parties.filter((p) => p.type === "Owner").map((p) => [p.name, p.id]));
   return [
     ...depreciation(period, registers.assets ?? [], booked),
     ...amortization(period, registers.spreads ?? [], booked),
     ...interestAccrual(period, registers.loans ?? [], booked),
     ...thirteenthMonth(period, (gross.data ?? []) as { book: Book; profit_center: ProfitCenter | null; amount: number }[]),
+    ...ownerAllowanceExcess(period, food, OWNER_FOOD_ALLOWANCE_CENTS, ownerIds),
   ];
+}
+
+/** Approved Owner's Allowance – Food lines for one month. */
+export async function ownerFoodLines(db: SupabaseClient, period: string): Promise<AllowanceLine[]> {
+  const { data, error } = await db.rpc("gl_lines", { p_account: OWNER_FOOD_ALLOWANCE, p_book: null, p_from: `${period}-01`, p_to: monthEnd(period) });
+  dbError(error);
+  return (data ?? []) as AllowanceLine[];
 }
 
 /** Approved trial balance totals as of the month-end. */

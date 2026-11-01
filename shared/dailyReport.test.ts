@@ -34,6 +34,17 @@ function oct29(): DailyReportInput {
 }
 
 describe("buildDailyReport", () => {
+  it("owner food goes to Owner's Allowance under the owner's name; staff food to their receivable", () => {
+    const input = oct29();
+    input.foodCharges[1] = { employeeId: "recKai", employeeName: "Kai Denila", amount: 200, owner: true };
+    const e = buildDailyReport(input, accounts).entries.find((x) => x.transaction_type === 6)!;
+    expect(e.lines.map((l) => [l.account_code, l.party_name ?? null, l.profit_center ?? null, l.debitCents, l.creditCents])).toEqual([
+      ["1243", "Ana", null, 207_00, 0],
+      ["6135", "Kai Denila", "GGC", 200_00, 0],
+      ["4170", null, "GGC", 0, 407_00],
+    ]);
+  });
+
   it("reproduces the handwritten cash report", () => {
     const r = buildDailyReport(oct29(), accounts);
     expect(r.errors).toEqual([]);

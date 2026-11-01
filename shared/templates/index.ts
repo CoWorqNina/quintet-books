@@ -101,7 +101,7 @@ export const TEMPLATE_NAMES: Record<number, string> = {
   35: "Owner Money In",
   36: "Owner Loan Repayment",
   37: "Owner Money Out",
-  38: "Owner Advance Returned",
+  38: "Owner Advance / Food Charges Repaid",
   39: "Unclassified Cash Movement",
   40: "Bank Charges",
   43: "Opening Balances",

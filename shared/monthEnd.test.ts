@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { isBalanced } from "./entries";
 import {
+  type AllowanceLine,
   amortization,
   type AssetRecord,
   bookedKey,
@@ -9,6 +10,8 @@ import {
   inventoryAdjustment,
   type LoanRecord,
   monthsThrough,
+  ownerAllowanceExcess,
+  ownerFoodSummary,
   scheduledToDate,
   type SpreadRecord,
   thirteenthMonth,
@@ -123,5 +126,27 @@ describe("inventory adjustment", () => {
     expect(isBalanced(g.entry)).toBe(true);
     const net = g.entry.lines.filter((l) => l.account_code === "1300").reduce((s, l) => s + l.debitCents - l.creditCents, 0);
     expect(1600_00 + net).toBe(1000_00);
+  });
+});
+
+describe("owner food allowance", () => {
+  const food = (owner: string, pc: "GGC" | "The Nest", d: number, c = 0): AllowanceLine => ({ book: "Store", party_name: owner, profit_center: pc, debit: d, credit: c });
+  const lines = [food("Kai", "GGC", 2400), food("Kai", "The Nest", 1200), food("Nina", "GGC", 1800)];
+  it("summarizes per owner and moves only what's above ₱3,000 to the owner's receivable", () => {
+    expect(ownerFoodSummary(lines, 3000_00).map((s) => [s.owner, s.takenCents, s.excessCents])).toEqual([
+      ["Kai", 3600_00, 600_00],
+      ["Nina", 1800_00, 0],
+    ]);
+    const [g] = ownerAllowanceExcess("2026-11", lines, 3000_00, new Map([["Kai", "recKai"]]));
+    expect(g.entry.lines.map((l) => [l.account_code, l.profit_center ?? null, l.debitCents, l.creditCents, l.party_id])).toEqual([
+      ["6135", "GGC", 0, 400_00, "recKai"],
+      ["6135", "The Nest", 0, 200_00, "recKai"],
+      ["1255", null, 600_00, 0, "recKai"],
+    ]);
+  });
+  it("after the excess is moved, only new food above the allowance is moved again", () => {
+    const moved = [...lines, food("Kai", "GGC", 0, 600)];
+    expect(ownerAllowanceExcess("2026-11", moved, 3000_00, new Map())).toEqual([]);
+    expect(ownerAllowanceExcess("2026-11", [...moved, food("Kai", "GGC", 150)], 3000_00, new Map())[0].details[0].cents).toBe(150_00);
   });
 });

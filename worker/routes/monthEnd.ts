@@ -34,13 +34,17 @@ monthEndRoutes.get("/:period/adjustments", async (c) => {
   booksOnly(c.get("user"));
   const period = periodParam(c.req.param("period"));
   const db = serviceClient(c.env);
-  const [proposed, existing] = await Promise.all([proposals(db, period), existingGenerated(db, period)]);
-  const kinds: GeneratedKind[] = ["depreciation", "amortization", "interest", "thirteenth"];
+  const [proposed, existing] = await Promise.all([proposals(db, period, c.env), existingGenerated(db, period)]);
+  const kinds: GeneratedKind[] = ["depreciation", "amortization", "interest", "thirteenth", "allowance"];
   const rows = kinds.flatMap((kind) =>
     (["Store", "Commissary"] as Book[]).map((book) => ({
       kind,
       book,
-      existing: existing.find((e) => e.generated === kind && e.book === book) ?? null,
+      // The one waiting for approval, if any, else the latest approved one.
+      existing:
+        existing.find((e) => e.generated === kind && e.book === book && e.status !== "Approved") ??
+        existing.filter((e) => e.generated === kind && e.book === book).sort((a, b) => b.id - a.id)[0] ??
+        null,
       proposal: proposed.find((p) => p.kind === kind && p.book === book) ?? null,
     })),
   );
@@ -54,9 +58,10 @@ monthEndRoutes.post("/:period/adjustments", async (c) => {
   ended(period);
   const { kind, book } = await c.req.json<{ kind: GeneratedKind; book: Book }>();
   const db = serviceClient(c.env);
-  const existing = (await existingGenerated(db, period)).find((e) => e.generated === kind && e.book === book);
-  if (existing) badRequest(`Already generated as entry #${existing.id}. Reverse or cancel it to generate again.`);
-  const proposal = (await proposals(db, period)).find((p) => p.kind === kind && p.book === book);
+  // A new one can follow an approved one (e.g. food charged after the first run); never two waiting at once.
+  const waiting = (await existingGenerated(db, period)).find((e) => e.generated === kind && e.book === book && e.status !== "Approved");
+  if (waiting) badRequest(`Entry #${waiting.id} is waiting for approval. Approve or cancel it first.`);
+  const proposal = (await proposals(db, period, c.env)).find((p) => p.kind === kind && p.book === book);
   if (!proposal) badRequest("Nothing to generate.");
   const { data, error } = await db.rpc("create_entries", {
     p_user: user.id,

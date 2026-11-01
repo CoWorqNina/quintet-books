@@ -226,17 +226,18 @@ function Adjustments({ period }: { period: string }) {
             <h2>
               {GENERATED_LABELS[r.kind]} · {r.book}
             </h2>
-            {r.existing ? (
+            {r.existing && (
               <span className={`badge ${r.existing.status === "Approved" ? "ok" : "info"}`}>
                 <Link to={`/journal?entry=${r.existing.id}`}>Entry #{r.existing.id}</Link> {r.existing.status}
               </span>
-            ) : (
+            )}
+            {r.proposal && (!r.existing || r.existing.status === "Approved") && (
               <button disabled={early || busy === `${r.kind}${r.book}`} onClick={() => generate(r)}>
-                {early ? `Available from ${monthEnd(period)}` : "Generate entry"}
+                {early ? `Available from ${monthEnd(period)}` : r.existing ? "Generate the rest" : "Generate entry"}
               </button>
             )}
           </div>
-          {r.proposal && !r.existing && (
+          {r.proposal && (!r.existing || r.existing.status === "Approved") && (
             <>
               <table className="lines">
                 <tbody>

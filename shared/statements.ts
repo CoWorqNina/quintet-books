@@ -218,7 +218,7 @@ export const BS_LINES: BsLine[] = [
   { section: "current-assets", label: "Cash in transit and for classification", match: codes(TRANSFERS_CLEARING, SUSPENSE) },
   { section: "current-assets", label: "Sales due for transfer (card, Grab, Foodpanda)", match: parent("1180") },
   { section: "current-assets", label: "Receivable from employees", match: parent("1240") },
-  { section: "current-assets", label: "Advances to owners", match: codes("1250") },
+  { section: "current-assets", label: "Advances and receivables from owners", match: codes("1250", "1255") },
   { section: "current-assets", label: "Due from CLD and other related parties", match: codes("1220", "1230") },
   { section: "current-assets", label: "Advances to suppliers", match: codes("1260") },
   { section: "current-assets", label: "Creditable withholding tax", match: codes("1270") },
@@ -382,7 +382,7 @@ export function cashCategory(code: string, a: Account | undefined, cash: Set<str
   if (p === "1500" || p === "1590" || p === "1600") return "assets";
   if (p === "1400" && code !== "1430") return "deposits";
   if (code === "2260") return "owner-loans";
-  if (code === "1250") return "owner-advances";
+  if (code === "1250" || code === "1255") return "owner-advances";
   if (["1220", "1230", "2170"].includes(code)) return "related";
   if (p === "2200") return "loans";
   if (code.startsWith("3")) return "capital";

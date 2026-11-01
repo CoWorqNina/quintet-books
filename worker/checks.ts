@@ -29,12 +29,12 @@ export async function runChecks(db: SupabaseClient, period: string, accounts: Ma
     totalsAt(db, period),
     loadRegisters(db),
     existingGenerated(db, period),
-    proposals(db, period),
+    proposals(db, period, env),
     db.from("entries").select("id, kind, status, entry_date, unsupported, description, entry_lines(account_code, profit_center, party_id, party_name, debit, credit)").eq("period_key", period).limit(5000),
     db.rpc("daily_report_days", { p_period: period }),
     db.from("reconciliations").select("account_code, book, statement_balance, items").eq("period_key", period),
     db.from("inventory_counts").select("id, book, profit_center, entry_id").eq("period_key", period),
-    db.rpc("party_lines", { p_accounts: ["2100", "1241", "1242", "1243", "1244", "2260", "1250", "2250", ...CLEARING_ACCOUNTS], p_to: asOf }),
+    db.rpc("party_lines", { p_accounts: ["2100", "1241", "1242", "1243", "1244", "2260", "1250", "1255", "2250", ...CLEARING_ACCOUNTS], p_to: asOf }),
     db.from("periods").select("key, status").lt("key", period).eq("status", "Open"),
   ]);
   for (const r of [entriesRes, reportsRes, recsRes, countsRes, partyRes, periodsRes]) dbError(r.error);
@@ -106,8 +106,8 @@ export async function runChecks(db: SupabaseClient, period: string, accounts: Ma
   // 6. Adjusting entries generated and approved.
   const adj: string[] = [];
   for (const p of proposed) {
-    const done = generated.find((g) => g.generated === p.kind && g.book === p.book);
-    if (!done) adj.push(`${GENERATED_LABELS[p.kind]} (${p.book}) not generated yet`);
+    const waiting = generated.find((g) => g.generated === p.kind && g.book === p.book && g.status !== "Approved");
+    if (!waiting) adj.push(`${GENERATED_LABELS[p.kind]} (${p.book}) not generated yet`);
   }
   for (const g of generated) if (g.generated !== "closing" && g.status !== "Approved") adj.push(`${GENERATED_LABELS[g.generated as Exclude<typeof g.generated, "closing">]} (${g.book}) entry #${g.id} is ${g.status}`);
   for (const c of (countsRes.data ?? []) as { book: Book; profit_center: string; entry_id: number | null }[]) {
@@ -156,7 +156,7 @@ export async function runChecks(db: SupabaseClient, period: string, accounts: Ma
   const noParty: string[] = [];
   const interestUntagged = plines.filter((l) => l.account_code === "2250" && !l.party_id?.startsWith("loan:"));
   if (interestUntagged.length) noParty.push(`2250 Accrued Interest Payable: ${interestUntagged.length} lines not tagged to a loan (e.g. entry #${interestUntagged[0].entry_id})`);
-  for (const code of ["2100", "1241", "1242", "1243", "1244", "2260", "1250"]) {
+  for (const code of ["2100", "1241", "1242", "1243", "1244", "2260", "1250", "1255"]) {
     const missingParty = plines.filter((l) => l.account_code === code && !l.party_id && !l.party_name);
     if (missingParty.length) noParty.push(`${code} ${accounts.get(code)?.name ?? ""}: ${missingParty.length} lines without a person or supplier (e.g. entry #${missingParty[0].entry_id})`);
   }

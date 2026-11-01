@@ -2,6 +2,7 @@ import type { StatementRow } from "../../shared/statements";
 import { todayManila, useLoad } from "../lib/data";
 import { useParam } from "./Ledger";
 import { amount, pct, StatementView } from "./Statements";
+import { AllowanceTable, type AllowanceRow } from "./SubLedgers";
 
 interface Report {
   period: string;
@@ -14,6 +15,7 @@ interface Report {
   cashFlow: { openingCents: number; closingCents: number; lines: { activity: string; label: string; cents: number }[] };
   cogs: { label: string; total: boolean; monthCents: number; monthPct: number; r3Cents: number; r3Pct: number }[];
   loans: { name: string; lender: string; rate: number; principalCents: number; interestPayableCents: number; paid: number; of: number; next: { dueDate: string; cents: number } | null; overdue: number }[];
+  allowance: AllowanceRow[];
   ratios: {
     month: Record<string, number>;
     r3: Record<string, number>;
@@ -169,6 +171,8 @@ export default function ManagementReport() {
               </tbody>
             </table>
           </div>
+
+          <AllowanceTable rows={data.allowance} month={data.label} />
 
           <div className="stmt">
             <h2>5. Key ratios</h2>

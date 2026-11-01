@@ -47,6 +47,8 @@ export const ACCOUNTS = {
   receivableShortages: "1241",
   receivableAdvances: "1242",
   receivableFoodCharges: "1243",
+  ownerFoodAllowance: "6135",
+  receivableOwnerFood: "1255",
   creditableWithholdingTax: "1270",
   suspense: "1195",
   commissionGrab: "6551",
