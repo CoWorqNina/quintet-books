@@ -40,7 +40,7 @@ Each phase ends with something usable and tested before the next one starts.
 - Setup screens: suppliers (with owner approval), employees, owners, lenders; accounts
   (Owner adds under a header or deactivates when the balance is zero, Judgment Log)
 
-## Phase 3 — Accounting cycle views (built; run `supabase/migrations/0004_ledger_views.sql`)
+## Phase 3 — Accounting cycle views (done, live)
 - Journal, General Ledger, T-accounts, Trial Balance (unadjusted/adjusted/post-closing; per book and combined)
 - Sub-ledgers: AP aging, employee receivables, owner loans/advances, reimbursements, clearing account aging
 - Supplier cost comparison for the eight COGS ingredients
