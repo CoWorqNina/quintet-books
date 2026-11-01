@@ -24,7 +24,7 @@ export interface LineDraft {
 }
 
 export interface EntryDraft {
-  kind: "Template" | "Special" | "Adjusting" | "Opening";
+  kind: "Template" | "Special" | "Adjusting" | "Opening" | "Closing";
   transaction_type: number | null;
   book: Book;
   profit_center: ProfitCenter | null;

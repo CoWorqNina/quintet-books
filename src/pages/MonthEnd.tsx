@@ -36,12 +36,14 @@ export default function MonthEnd({ user }: { user: AppUser }) {
         {books && <NavLink to={`/month-end/adjustments${q}`}>Adjusting entries</NavLink>}
         <NavLink to={`/month-end/inventory${q}`}>Inventory count</NavLink>
         {books && <NavLink to={`/month-end/reconciliations${q}`}>Reconciliations</NavLink>}
+        {books && <NavLink to={`/month-end/year-end${q}`}>Year-end</NavLink>}
       </nav>
       <Routes>
         {books && <Route index element={<Checklist period={period} user={user} />} />}
         {books && <Route path="adjustments" element={<Adjustments period={period} />} />}
         <Route path="inventory" element={<Inventory period={period} user={user} />} />
         {books && <Route path="reconciliations" element={<Reconciliations period={period} />} />}
+        {books && <Route path="year-end" element={<YearEnd year={Number(period.slice(0, 4))} user={user} />} />}
         <Route path="*" element={<Inventory period={period} user={user} />} />
       </Routes>
     </section>
@@ -133,6 +135,63 @@ interface AdjRow {
   book: Book;
   existing: { id: number; status: string } | null;
   proposal: { entry: EntryDraft; details: { label: string; cents: number }[] } | null;
+}
+
+interface YearEndBook {
+  book: Book;
+  existing: { id: number; status: string }[];
+  proposal: EntryDraft | null;
+}
+
+function YearEnd({ year, user }: { year: number; user: AppUser }) {
+  const { data, error, reload } = useLoad<{ canClose: boolean; pendingEntries: number; books: YearEndBook[] }>(`/year-end/${year}`);
+  const accountList = useAccounts();
+  const accounts = new Map(accountList.map((a) => [a.code, a]));
+  const [busy, setBusy] = useState(false);
+
+  async function close(book: Book) {
+    if (!confirm(`Close ${year} for the ${book} book? Income and expenses move to Retained Earnings; the other Owner approves.`)) return;
+    setBusy(true);
+    try {
+      await api(`/year-end/${year}`, { method: "POST", body: JSON.stringify({ book }) });
+      reload();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Could not close the year");
+    }
+    setBusy(false);
+  }
+
+  return (
+    <>
+      <p className="muted">
+        On December 31, {year}, every income and expense account is closed to Retained Earnings, one entry per book, so {year + 1} starts at
+        zero. Do it after December's adjusting entries are approved and before closing December. The post-closing trial balance is under Ledger →
+        Trial balance → Post-closing.
+      </p>
+      {error && <p className="error">{error}</p>}
+      {data && !data.canClose && <p className="badge info">Available from December 31, {year}.</p>}
+      {data && data.pendingEntries > 0 && <p className="badge warn">{data.pendingEntries} entries in {year} are still waiting for approval.</p>}
+      {data?.books.map((b) => (
+        <div key={b.book} className="card">
+          <div className="page-head">
+            <h2>{b.book} book</h2>
+            {b.existing.map((e) => (
+              <span key={e.id} className={`badge ${e.status === "Approved" ? "ok" : "info"}`}>
+                <Link to={`/journal?entry=${e.id}`}>Closing entry #{e.id}</Link> {e.status}
+              </span>
+            ))}
+            {!b.proposal && !b.existing.length && <span className="muted">Nothing to close.</span>}
+            {b.proposal && user.role === "Owner" && !b.existing.some((e) => e.status !== "Approved") && (
+              <button disabled={busy || !data.canClose || data.pendingEntries > 0} onClick={() => close(b.book)}>
+                Generate closing entry
+              </button>
+            )}
+          </div>
+          {b.proposal && <EntryPreview entries={[b.proposal]} accounts={accounts} />}
+        </div>
+      ))}
+    </>
+  );
 }
 
 function Adjustments({ period }: { period: string }) {

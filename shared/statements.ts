@@ -31,8 +31,9 @@ export interface StatementTotal {
  * store / commissary: one book as recorded (billings kept)
  * ggc / nest: one brand from the whole-business view (Shared items stay in the total only)
  */
-export type Scope = "business" | "store" | "commissary" | "ggc" | "nest";
+export type Scope = "business" | "store" | "commissary" | "ggc" | "nest" | "all";
 export const SCOPE_LABELS: Record<Scope, string> = {
+  all: "Both books as recorded",
   business: "Whole business",
   store: "Store book",
   commissary: "Commissary book",
@@ -56,6 +57,8 @@ export function inScope(r: StatementTotal, scope: Scope): boolean {
       return !r.intercompany && pcOf(r) === "GGC";
     case "nest":
       return !r.intercompany && pcOf(r) === "The Nest";
+    case "all":
+      return true;
   }
 }
 

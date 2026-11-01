@@ -35,9 +35,9 @@ statements.use("/*", async (c, next) => {
 
 type DB = ReturnType<typeof serviceClient>;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const monthLabel = (p: string) => `${MONTHS[Number(p.slice(5)) - 1]} ${p.slice(0, 4)}`;
-const prevPeriod = (p: string) => addMonths(`${p}-01`, -1).slice(0, 7);
-const dayBefore = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
+export const monthLabel = (p: string) => `${MONTHS[Number(p.slice(5)) - 1]} ${p.slice(0, 4)}`;
+export const prevPeriod = (p: string) => addMonths(`${p}-01`, -1).slice(0, 7);
+export const dayBefore = (d: string) => new Date(Date.parse(`${d}T00:00:00Z`) - 86_400_000).toISOString().slice(0, 10);
 
 function periodParam(v: string | undefined): string {
   const p = v ?? todayManila().slice(0, 7);
@@ -55,19 +55,19 @@ const accountMap = async (env: AppContext["Bindings"]) => {
 };
 
 /** Preliminary unless every month from `from` to `to` is Final. */
-async function status(db: DB, from: string, to: string): Promise<"Final" | "Preliminary"> {
+export async function status(db: DB, from: string, to: string): Promise<"Final" | "Preliminary"> {
   const { data, error } = await db.from("periods").select("status").gte("key", from.slice(0, 7)).lte("key", to.slice(0, 7));
   dbError(error);
   return data?.length && data.every((p) => p.status === "Final") ? "Final" : "Preliminary";
 }
 
-async function statementTotals(db: DB, from: string, to: string): Promise<StatementTotal[]> {
+export async function statementTotals(db: DB, from: string, to: string): Promise<StatementTotal[]> {
   const { data, error } = await db.rpc("statement_totals", { p_from: from, p_to: to });
   dbError(error);
   return (data ?? []) as StatementTotal[];
 }
 
-async function totalsAt(db: DB, asOf: string): Promise<AccountTotal[]> {
+export async function totalsAt(db: DB, asOf: string): Promise<AccountTotal[]> {
   const { data, error } = await db.rpc("account_totals", { p_to: asOf, p_year_start: yearStart(asOf), p_mode: "adjusted" });
   dbError(error);
   return (data ?? []) as AccountTotal[];
@@ -146,7 +146,7 @@ function addDerived(rows: StatementRow[], columns: { key: string; kind?: string 
 // Balance Sheet ------------------------------------------------------------------------------
 
 /** Loan principal due within 12 months of `asOf`, per Loans Payable account, from the Loan Tracker. */
-async function loansDueWithinYear(db: DB, asOf: string): Promise<Map<string, number>> {
+export async function loansDueWithinYear(db: DB, asOf: string): Promise<Map<string, number>> {
   const registers = await loadRegisters(db);
   const limit = addMonths(asOf, 12);
   const out = new Map<string, number>();
@@ -186,13 +186,13 @@ statements.get("/balance", async (c) => {
 
 // Cash Flow ----------------------------------------------------------------------------------
 
-async function cashLines(db: DB, from: string, to: string, cash: string[]): Promise<CashLine[]> {
+export async function cashLines(db: DB, from: string, to: string, cash: string[]): Promise<CashLine[]> {
   const { data, error } = await db.rpc("cash_entry_lines", { p_from: from, p_to: to, p_cash: cash });
   dbError(error);
   return (data ?? []) as CashLine[];
 }
 
-const sumBalances = (totals: AccountTotal[], codes: Set<string>, books: Book[]) =>
+export const sumBalances = (totals: AccountTotal[], codes: Set<string>, books: Book[]) =>
   totals
     .filter((t) => codes.has(t.account_code) && books.includes(t.book))
     .reduce((s, t) => s + toCents(Number(t.prior_debit)) - toCents(Number(t.prior_credit)) + toCents(Number(t.year_debit)) - toCents(Number(t.year_credit)), 0);

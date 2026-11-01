@@ -45,7 +45,7 @@ export async function loadBooked(db: SupabaseClient, period: string): Promise<Bo
 export interface ExistingGenerated {
   id: number;
   book: Book;
-  generated: GeneratedKind;
+  generated: GeneratedKind | "closing";
   status: string;
 }
 

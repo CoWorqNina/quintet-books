@@ -12,6 +12,7 @@ import DailyReports from "./pages/DailyReports";
 import Home from "./pages/Home";
 import Journal from "./pages/Journal";
 import Ledger from "./pages/Ledger";
+import ManagementReport from "./pages/ManagementReport";
 import MonthEnd from "./pages/MonthEnd";
 import Login from "./pages/Login";
 import Classify from "./pages/Classify";
@@ -19,6 +20,7 @@ import ManualEntry from "./pages/ManualEntry";
 import NewEntry, { CorrectEntry } from "./pages/NewEntry";
 import Registers from "./pages/Registers";
 import Statements from "./pages/Statements";
+import Users from "./pages/Users";
 import Parties from "./pages/Parties";
 import SetPassword from "./pages/SetPassword";
 
@@ -80,6 +82,7 @@ export default function App() {
           {canEnter && <NavLink to="/entries/new">New entry</NavLink>}
           {isOwner && <NavLink to="/approvals">Approvals</NavLink>}
           <NavLink to="/journal">Journal</NavLink>
+          {isBooks && <NavLink to="/report">Report</NavLink>}
           {isBooks && <NavLink to="/statements">Statements</NavLink>}
           {isBooks && <NavLink to="/ledger">Ledger</NavLink>}
           {(isBooks || canCount) && <NavLink to={isBooks ? "/month-end" : "/month-end/inventory"}>Month-end</NavLink>}
@@ -88,6 +91,7 @@ export default function App() {
           {isBooks && <NavLink to="/registers">Registers</NavLink>}
           <NavLink to="/parties">People</NavLink>
           <NavLink to="/accounts">Accounts</NavLink>
+          {isOwner && <NavLink to="/users">Users</NavLink>}
         </nav>
         <span className="who">
           {user.fullName} · {user.role}
@@ -113,6 +117,8 @@ export default function App() {
           {isBooks && <Route path="/registers" element={<Registers user={user} />} />}
           {isBooks && <Route path="/ledger/*" element={<Ledger />} />}
           {isBooks && <Route path="/statements/*" element={<Statements />} />}
+          {isBooks && <Route path="/report" element={<ManagementReport />} />}
+          {isOwner && <Route path="/users" element={<Users user={user} />} />}
           {(isBooks || canCount) && <Route path="/month-end/*" element={<MonthEnd user={user} />} />}
           <Route path="*" element={<p>Page not found.</p>} />
         </Routes>

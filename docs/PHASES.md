@@ -72,7 +72,15 @@ Each phase ends with something usable and tested before the next one starts.
 - Exports: CSV per statement and print / save as PDF. Supplier cost comparison is under Ledger
 - Not yet: a one-page monthly management report (Phase 6)
 
-## Phase 6 — Year-end and hardening
-- Monthly management report (one page: sales, margins, cash, what needs attention)
-- Year-end close to Retained Earnings, post-closing trial balance
-- Custom domain switch (config only), backups, load/rate-limit testing
+## Phase 6 — Year-end and hardening (done)
+- Monthly management report (Section 9): summary led by cash, payroll cover and loan payments
+  due; GGC (Store, Commissary, eliminations) and The Nest income statements; balance sheet and
+  cash flow; COGS per ingredient monthly and rolling 3 months; loan summary; key ratios
+  (COGS, labor, utilities, marketing, net margin, debt service, cash runway); Judgment Log;
+  red flags; open items. Printable
+- Year-end close: one Closing entry per book to Retained Earnings, approved by the other Owner;
+  post-closing trial balance; December checklist item. Steps in `docs/YEAR_END.md`
+- Users screen (Owners): invite by email, change role, books and profit centers, remove access;
+  at least one active Owner always remains; changes in the audit log
+- New-year Airtable base, custom domain and backups: documented in `docs/YEAR_END.md` and
+  `docs/SETUP.md`

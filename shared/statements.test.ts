@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { brandIncomeStatement, ratios } from "./managementReport";
 import type { AccountTotal } from "./ledger";
 import { balanceSheet, balanceSheetColumn, cashAccounts, cashFlows, type CashLine, incomeStatement, pcOf, type StatementTotal } from "./statements";
 import testAccounts from "./test-accounts.json";
@@ -100,5 +101,24 @@ describe("cash flow (direct)", () => {
     const f = cashFlows(lines, accounts, new Set(["1140"]));
     expect(f.get("transfers")).toBe(5000_00);
     expect(f.get("intercompany")).toBe(-2000_00);
+  });
+});
+
+
+describe("management report", () => {
+  it("Store + Commissary + Eliminations = GGC; GGC + The Nest + Shared = Total", () => {
+    const rows = brandIncomeStatement(totals, accounts);
+    for (const r of rows.filter((x) => x.kind !== "section" && x.kind !== "group" && x.kind !== "pct")) {
+      const v = r.values;
+      expect(v.Store + v.Commissary + v.Eliminations).toBe(v.GGC);
+      expect(v.GGC + v["The Nest"] + v.Shared).toBe(v.Total);
+    }
+    const ns = rows.find((r) => r.label === "Net Sales")!.values;
+    expect([ns.Store, ns.Commissary, ns.Eliminations, ns.GGC]).toEqual([9500_00, 800_00, -800_00, 9500_00]);
+  });
+  it("ratios as % of net sales", () => {
+    const r = ratios(incomeStatement(totals, accounts, "business", ["Total"], () => ["Total"]), "Total");
+    expect(r.netSalesCents).toBe(13500_00);
+    expect(r.cogsPct).toBe(Math.round((3600 / 13500) * 10000));
   });
 });
