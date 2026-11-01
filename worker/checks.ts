@@ -31,7 +31,7 @@ export async function runChecks(db: SupabaseClient, period: string, accounts: Ma
     db.rpc("daily_report_days", { p_period: period }),
     db.from("reconciliations").select("account_code, book, statement_balance, items").eq("period_key", period),
     db.from("inventory_counts").select("id, book, profit_center, entry_id").eq("period_key", period),
-    db.rpc("party_lines", { p_accounts: ["2100", "1241", "1242", "1243", "1244", "2260", "1250", ...CLEARING_ACCOUNTS], p_to: asOf }),
+    db.rpc("party_lines", { p_accounts: ["2100", "1241", "1242", "1243", "1244", "2260", "1250", "2250", ...CLEARING_ACCOUNTS], p_to: asOf }),
     db.from("periods").select("key, status").lt("key", period).eq("status", "Open"),
   ]);
   for (const r of [entriesRes, reportsRes, recsRes, countsRes, partyRes, periodsRes]) dbError(r.error);
@@ -151,6 +151,8 @@ export async function runChecks(db: SupabaseClient, period: string, accounts: Ma
   add("assets", "Fixed asset cost agrees with the register", faIssues);
 
   const noParty: string[] = [];
+  const interestUntagged = plines.filter((l) => l.account_code === "2250" && !l.party_id?.startsWith("loan:"));
+  if (interestUntagged.length) noParty.push(`2250 Accrued Interest Payable: ${interestUntagged.length} lines not tagged to a loan (e.g. entry #${interestUntagged[0].entry_id})`);
   for (const code of ["2100", "1241", "1242", "1243", "1244", "2260", "1250"]) {
     const missingParty = plines.filter((l) => l.account_code === code && !l.party_id && !l.party_name);
     if (missingParty.length) noParty.push(`${code} ${accounts.get(code)?.name ?? ""}: ${missingParty.length} lines without a person or supplier (e.g. entry #${missingParty[0].entry_id})`);

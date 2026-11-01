@@ -5,6 +5,7 @@ Accounting decisions are also recorded in the Airtable Judgment Log.
 
 | Date | Decision | Decided by |
 |---|---|---|
+| 2026-11-01 | Loan principal and interest payable are kept apart: principal in each loan's own Loans Payable account, interest owed in 2250 Accrued Interest Payable with every line tagged to its loan (also required on opening balances and special entries). Shown per loan under Ledger → Sub-ledgers → Loans & interest payable. | Nina |
 | 2026-11-01 | Loan interest (accrued and paid) is tagged GGC; loans are taken for the business as a whole. Change per loan later if needed. | Build |
 | 2026-11-01 | 13th month accrual = 1/12 of the gross pay recorded by #22 in the month, per profit center. | Build |
 | 2026-11-01 | Inventory is counted per location (Store–GGC, Store–The Nest, Commissary); the opening inventory balance belongs to GGC until the first count. | Build |

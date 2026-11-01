@@ -8,6 +8,16 @@ import { formatPeso, sumCents, toCents } from "./money";
 import type { Account, Book, Party, ProfitCenter } from "./types";
 
 export const OPENING_DATE = "2026-10-31";
+/** Accrued interest is tracked per loan, kept apart from the loan's principal. */
+export const ACCRUED_INTEREST = "2250";
+
+/** Loans as parties ("loan:<id>"), so Accrued Interest Payable lines can be tagged to their loan. */
+export function loanParties(loans: { id: number; name: string }[]): Party[] {
+  return loans.map((l) => ({
+    id: `loan:${l.id}`, name: l.name, type: "Lender", books: ["Store", "Commissary"], profitCenter: null, active: true, approved: true,
+    approvalStatus: null, contactDetails: null, paymentTerms: null, itemsSupplied: null, addedBy: null,
+  }));
+}
 export const OPENING_TEMPLATE = 43;
 
 export interface ManualLine {
@@ -76,6 +86,7 @@ export function buildManualEntry(
     if (!d && !c) return void errors.push(`${label}: enter an amount.`);
     const party = l.party ? parties.get(l.party) : undefined;
     if (l.party && !party) errors.push(`${label}: unknown party.`);
+    if (a.code === ACCRUED_INTEREST && !party?.id.startsWith("loan:")) errors.push(`${label}: choose the loan this interest belongs to.`);
     const extras = {
       profit_center: lineProfitCenter(a, input.book, l.profitCenter, errors),
       party_id: party?.id ?? null,
