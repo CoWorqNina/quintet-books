@@ -17,6 +17,8 @@ import { entries } from "./routes/entries";
 import { ledger } from "./routes/ledger";
 import { monthEndRoutes } from "./routes/monthEnd";
 import { parties } from "./routes/parties";
+import { reports } from "./routes/reports";
+import { users } from "./routes/users";
 import { statements } from "./routes/statements";
 import { yearEnd } from "./routes/yearEnd";
 import { setup } from "./routes/setup";
@@ -73,6 +75,8 @@ app.route("/ledger", ledger);
 app.route("/month-end", monthEndRoutes);
 app.route("/parties", parties);
 app.route("/statements", statements);
+app.route("/reports", reports);
+app.route("/users", users);
 app.route("/year-end", yearEnd);
 app.route("/", setup);
 

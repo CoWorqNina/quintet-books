@@ -5,6 +5,8 @@ Accounting decisions are also recorded in the Airtable Judgment Log.
 
 | Date | Decision | Decided by |
 |---|---|---|
+| 2026-11-01 | Year-end closes straight to 3300 Retained Earnings, per book and profit center; 3400 Current Year Earnings stays unused. | Build |
+| 2026-11-01 | Management report "next payroll" = half of the month's net pay (two pay periods); cash runway = cash ÷ average weekly operating spending over the last 3 months. | Build |
 | 2026-11-01 | Statement formats approved: Income Statement monthly, YTD, month by month, and this month vs YTD; Balance Sheet vs prior month-end. | Nina |
 | 2026-11-01 | Whole-business and GGC-as-a-whole views remove every Commissary transfer billing (#20) and the matching Store cost, including billings to The Nest. Store and Commissary book views keep them. | Build |
 | 2026-11-01 | Cash flow (direct): each entry's cash is spread over the other side of the entry in proportion (an installment splits into principal and interest; an asset bought partly on credit counts only the cash paid). Cash in transit (1190) and Suspense (1195) count as cash until cleared, so a classified cash-out shows under what it turned out to be. | Build |

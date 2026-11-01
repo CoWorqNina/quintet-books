@@ -166,12 +166,12 @@ function RangeSelect({ value, onChange }: { value: string; onChange: (v: string)
 }
 
 /** A number as shown on a statement: costs positive, negatives in parentheses, ₱ omitted. */
-function amount(cents: number): string {
+export function amount(cents: number): string {
   if (!cents) return "–";
   const s = formatPeso(Math.abs(cents)).replace("₱", "");
   return cents < 0 ? `(${s})` : s;
 }
-const pct = (bp: number) => (bp ? `${(bp / 100).toFixed(1)}%` : "–");
+export const pct = (bp: number) => (bp ? `${(bp / 100).toFixed(1)}%` : "–");
 
 function cell(r: StatementRow, c: Column): string {
   const v = r.values[c.key] ?? 0;
@@ -179,7 +179,7 @@ function cell(r: StatementRow, c: Column): string {
   return amount(v * r.sign);
 }
 
-function StatementView({ data, note, check }: { data: Statement; note?: string; check?: { ok: boolean; ok_label: string; bad_label: string } }) {
+export function StatementView({ data, note, check }: { data: Statement; note?: string; check?: { ok: boolean; ok_label: string; bad_label: string } }) {
   return (
     <div className="stmt">
       <div className="stmt-head">
