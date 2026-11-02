@@ -21,6 +21,10 @@ export interface LineDraft {
   unit_price?: number | null;
   memo?: string | null;
   template_line: string;
+  /** The bill line this payment settles (supplier invoice, card charge, reimbursement). */
+  settles_line_id?: number | null;
+  /** When this payable falls due. */
+  due_date?: string | null;
 }
 
 export interface EntryDraft {

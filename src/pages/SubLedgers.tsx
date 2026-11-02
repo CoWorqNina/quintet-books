@@ -7,10 +7,15 @@ import { BookSelect, peso, useParam } from "./Ledger";
 
 interface OpenItem {
   entryId: number;
+  lineId?: number;
   date: string;
+  dueDate?: string | null;
   description: string | null;
+  memo?: string | null;
+  reference?: string | null;
   openCents: number;
   ageDays: number;
+  overdueDays?: number;
 }
 
 const KINDS = [
@@ -67,11 +72,15 @@ function Items({ items, colSpan, limit }: { items: OpenItem[]; colSpan: number; 
         <table className="lines">
           <tbody>
             {items.map((i) => (
-              <tr key={i.entryId}>
+              <tr key={i.lineId ?? i.entryId}>
                 <td>
-                  {i.date} · <Link to={`/journal?entry=${i.entryId}`}>#{i.entryId}</Link> {i.description}
+                  {i.date} · <Link to={`/journal?entry=${i.entryId}`}>#{i.entryId}</Link> {i.memo || i.reference || i.description}
                 </td>
-                <td className={limit !== undefined && i.ageDays > limit ? "error" : "muted"}>{i.ageDays} days</td>
+                {i.dueDate ? (
+                  <td className={i.overdueDays ? "error" : "muted"}>{i.overdueDays ? `${i.overdueDays} days overdue` : `due ${i.dueDate}`}</td>
+                ) : (
+                  <td className={limit !== undefined && i.ageDays > limit ? "error" : "muted"}>{i.ageDays} days</td>
+                )}
                 <td className="num">{peso(i.openCents)}</td>
               </tr>
             ))}
@@ -416,8 +425,55 @@ function Owners({ data }: { data: { month: string; loans: { party: string; balan
   );
 }
 
-function Reimbursements({ data }: { data: { people: { code: string; name: string; balanceCents: number }[] } }) {
-  return <PartyTable title="Credit cards, SPayLater & reimbursements payable" rows={data.people.map((p) => ({ party: `${p.code} ${p.name.replace(/^Reimbursements Payable – /, "")}`, balanceCents: p.balanceCents }))} empty="" />;
+function Reimbursements({ data }: { data: { people: { code: string; name: string; balanceCents: number; items?: OpenItem[] }[] } }) {
+  const rows = data.people.filter((p) => p.balanceCents || p.items?.length);
+  const total = data.people.reduce((s, p) => s + p.balanceCents, 0);
+  return (
+    <div className="card">
+      <h2>Credit cards, SPayLater & reimbursements payable</h2>
+      <p className="muted">Unpaid charges per card. Pay them with #18, ticking the charges paid.</p>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style={{ textAlign: "left" }}>Account</th>
+              <th>Unpaid</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={2} className="muted">
+                  Nothing unpaid.
+                </td>
+              </tr>
+            )}
+            {rows.map((p) => (
+              <Fragment key={p.code}>
+                <tr>
+                  <td>
+                    <strong>
+                      {p.code} {p.name.replace(/^Reimbursements Payable – /, "Reimburse ")}
+                    </strong>
+                  </td>
+                  <td className="num">
+                    <strong>{peso(p.balanceCents)}</strong>
+                  </td>
+                </tr>
+                {p.items && p.items.length > 0 && <Items items={p.items} colSpan={2} />}
+              </Fragment>
+            ))}
+          </tbody>
+          <tfoot>
+            <tr>
+              <td>Total</td>
+              <td className="num">{peso(total)}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>
+  );
 }
 
 function Clearing({ data }: { data: { buckets: string[]; accounts: { code: string; name: string; limitDays: number; balanceCents: number; buckets: number[]; overdue: OpenItem[]; items: OpenItem[] }[] } }) {

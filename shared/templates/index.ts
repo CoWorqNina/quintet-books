@@ -81,7 +81,7 @@ export const TEMPLATE_NAMES: Record<number, string> = {
   15: "Supplier Advance",
   16: "Advance Applied on Delivery",
   17: "Personal-Fund Purchase",
-  18: "Reimbursement Paid",
+  18: "Card, SPayLater or Reimbursement Payment",
   19: "Store Pays a Commissary Cost",
   20: "Commissary Transfer Billing",
   21: "Monthly Commissary Settlement",

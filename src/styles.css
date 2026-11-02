@@ -162,3 +162,4 @@ ol.summary li { margin: 0.35rem 0; }
 .row-links { display: inline-flex; gap: 0.75rem; }
 .shell main:has(section.wide) { max-width: 1400px; }
 .wide table { font-size: 0.85rem; }
+table.bills td input[type="checkbox"] { width: auto; } table.bills .small { font-size: 0.8rem; } table.bills td.num input { max-width: 8rem; text-align: right; }

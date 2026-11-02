@@ -1,12 +1,13 @@
 import { DUE_TO_COMMISSARY } from "../shared/templates/commissary";
 import type { Template, TemplateContext } from "../shared/templates";
 import type { AppUser, Book } from "../shared/types";
-import { checkProfitCenter } from "./access";
+import { checkProfitCenter, todayManila } from "./access";
 import { getAccounts, getParties, getProducts } from "./airtable";
 import { accountBalanceCents } from "./balances";
 import { badRequest, forbidden } from "./db";
 import type { Env } from "./env";
 import { getLoans } from "./registers";
+import { loadOpenBills } from "./openBills";
 import { serviceClient } from "./supabase";
 
 /**
@@ -31,12 +32,13 @@ export async function templateContext(
   }
   const uses = (type: string) => template.fields.some((f) => f.type === type || f.columns?.some((c) => c.type === type));
   const db = serviceClient(env);
-  const [accounts, parties, products, loans, dueTo] = await Promise.all([
+  const [accounts, parties, products, loans, dueTo, bills] = await Promise.all([
     getAccounts(env),
     getParties(env),
     uses("product") ? getProducts(env) : Promise.resolve([]),
     uses("loan") ? getLoans(db) : Promise.resolve([]),
     template.number === 21 ? accountBalanceCents(db, "Store", DUE_TO_COMMISSARY) : Promise.resolve(undefined),
+    uses("openItems") ? loadOpenBills(env, todayManila()) : Promise.resolve([]),
   ]);
   return {
     book: template.twoBook ? "Store" : book,
@@ -46,5 +48,6 @@ export async function templateContext(
     products: new Map(products.map((p) => [p.id, p])),
     loans: new Map(loans.map((l) => [String(l.id), l])),
     dueToCommissaryCents: dueTo === undefined ? undefined : -dueTo,
+    openBills: bills,
   };
 }

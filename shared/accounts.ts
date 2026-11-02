@@ -112,6 +112,13 @@ export function isStoreCashAccount(a: Account | undefined): a is Account {
 
 /** Headers for owners' SPayLater (2160) and credit card (2190) accounts used to pay suppliers. */
 export const CARDS_PAYABLE = ["2160", "2190"];
+/** Reimbursements payable per person (owners' own cash). */
+export const REIMBURSEMENTS = "2110";
+
+/** An owner's credit card or SPayLater account. */
+export function isCardAccount(a: Account | undefined): boolean {
+  return !!a && CARDS_PAYABLE.includes(a.parentCode ?? "");
+}
 
 export type AccountFilter =
   | "expense" // COGS or operating expense ("expense line")
@@ -119,7 +126,11 @@ export type AccountFilter =
   | "payFrom" // bank, e-wallet or the profit center's petty cash
   | "receiveInto" // bank, e-wallet or cash on hand
   | "cash" // any cash account in the book
-  | "reimbursement" // Reimbursements Payable per person (2111-2114) and owners' SPayLater / credit cards (2160, 2190)
+  | "reimbursement" // Reimbursements Payable per person (2111-2114)
+  | "card" // owners' SPayLater and credit cards (2160, 2190)
+  | "payable" // a card, SPayLater or reimbursement account (bills paid with #18)
+  | "bankOrCard" // bank, e-wallet, or an owner's card / SPayLater
+  | "payFromOrCard" // payFrom, or an owner's card / SPayLater
   | "ppe" // property & equipment classes
   | "deposit" // refundable deposits
   | "employeeReceivable" // 1241-1244
@@ -150,7 +161,15 @@ export function accountMatches(filter: AccountFilter, a: Account | undefined, ct
     case "cash":
       return a.isCashAccount;
     case "reimbursement":
-      return a.parentCode === "2110" || CARDS_PAYABLE.includes(a.parentCode ?? "");
+      return a.parentCode === REIMBURSEMENTS;
+    case "card":
+      return isCardAccount(a);
+    case "payable":
+      return a.parentCode === REIMBURSEMENTS || isCardAccount(a);
+    case "bankOrCard":
+      return (a.isCashAccount && !CASH_ON_HAND.has(a.code)) || isCardAccount(a);
+    case "payFromOrCard":
+      return (a.isCashAccount && !CASH_ON_HAND.has(a.code)) || a.code === cash?.pettyCash || isCardAccount(a);
     case "ppe":
       // 1550 Smallwares (legacy) takes no new additions from Nov 1, 2026
       return a.parentCode === "1500" && a.type === "Asset" && a.code !== "1550";

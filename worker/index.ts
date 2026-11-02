@@ -6,6 +6,7 @@ import { AirtableError, getAccounts, getProducts } from "./airtable";
 import { accountBalanceCents } from "./balances";
 import { DUE_TO_COMMISSARY } from "../shared/templates/commissary";
 import { getLoans } from "./registers";
+import { loadOpenBills } from "./openBills";
 import { requireUser } from "./auth";
 import { exportLedger, gzipJson, nightlyBackup } from "./backup";
 import { forbidden } from "./db";
@@ -44,6 +45,13 @@ app.get("/accounts", async (c) => c.json(await getAccounts(c.env)));
 app.get("/products", async (c) => c.json(await getProducts(c.env)));
 
 app.get("/loans", async (c) => c.json(await getLoans(serviceClient(c.env))));
+
+// Unpaid supplier invoices, card / SPayLater charges and reimbursements, for payments that tick them off.
+app.get("/open-bills", async (c) => {
+  const user = c.get("user");
+  if (!["Owner", "Accountant"].includes(user.role)) forbidden();
+  return c.json(await loadOpenBills(c.env, todayManila()));
+});
 
 // What the Store owes the Commissary (approved entries), for the monthly settlement.
 app.get("/balances/due-to-commissary", async (c) => {

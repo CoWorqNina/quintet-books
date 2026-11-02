@@ -3,6 +3,7 @@
 
 import { accountMatches, type AccountFilter, needsQuantity, profitCenterAllowed } from "../accounts";
 import { type Attachment, type EntryDraft, finishEntry, type LineDraft, debit } from "../entries";
+import { billLabel, type OpenBill } from "../ledger";
 import { formatPeso, toCents } from "../money";
 import type { Account, Book, Party, ProfitCenter, Role } from "../types";
 
@@ -19,7 +20,8 @@ export type FieldType =
   | "product" // Commissary product
   | "loan" // loan from the Loan Tracker
   | "profitCenter" // GGC / The Nest (per line)
-  | "rows"; // repeating lines with `columns`
+  | "rows" // repeating lines with `columns`
+  | "openItems"; // unpaid bills to tick off (rows of { lineId, amount })
 
 export interface Field {
   name: string;
@@ -37,6 +39,10 @@ export interface Field {
   storeOnly?: boolean;
   /** Book whose accounts an account field lists, when it differs from the entry's (two-book templates). */
   book?: Book;
+  /** openItems: the payable account, fixed or taken from another field, and the field naming the supplier. */
+  itemsAccount?: string;
+  itemsAccountField?: string;
+  itemsPartyField?: string;
 }
 
 export type Scalar = string | number | boolean | null | undefined;
@@ -70,6 +76,8 @@ export interface TemplateContext {
   loans?: Map<string, LoanInfo>;
   /** Approved balance of Due to Commissary (credit balance, centavos), for the monthly settlement. */
   dueToCommissaryCents?: number;
+  /** Unpaid bills on payable accounts, for payments that tick them off. */
+  openBills?: OpenBill[];
 }
 
 /** A schedule record created together with an entry (asset, prepaid spread, loan). */
@@ -119,6 +127,7 @@ function missing(f: Field, v: unknown): boolean {
   if (f.type === "attachment") return !att(v);
   if (f.type === "money") return !(cents(v) > 0);
   if (f.type === "rows") return rowsOf(v).length === 0;
+  if (f.type === "openItems") return !rowsOf(v).some((r) => cents(r.amount) > 0);
   if (f.type === "checkbox") return !v;
   return !str(v);
 }
@@ -255,3 +264,44 @@ export function result(errors: string[], ...entries: (EntryDraft | null)[]): Bui
 export { formatPeso };
 
 export const dateField: Field = { name: "date", label: "Date", type: "date", required: true };
+
+/** The bills an openItems field lists: the account's unpaid bills in this book (and supplier). */
+export function billsFor(f: Field, values: Values, ctx: TemplateContext): OpenBill[] {
+  const account = f.itemsAccount ?? str(values[f.itemsAccountField ?? ""]);
+  const party = f.itemsPartyField ? str(values[f.itemsPartyField]) : "";
+  if (!account || (f.itemsPartyField && !party)) return [];
+  return (ctx.openBills ?? []).filter((b) => b.book === ctx.book && b.accountCode === account && (!party || b.partyId === party));
+}
+
+/**
+ * Lines paying the ticked bills: one per bill on the payable account, naming the bill it settles.
+ * Checks each bill is still open (and not over-paid).
+ */
+export function settleLines(field: Field, values: Values, ctx: TemplateContext, errors: string[], templateLine: string) {
+  const bills = new Map(billsFor(field, values, ctx).map((b) => [b.lineId, b]));
+  const seen = new Set<number>();
+  const lines: LineDraft[] = [];
+  const labels: string[] = [];
+  for (const row of rowsOf(values[field.name])) {
+    const amount = cents(row.amount);
+    if (amount <= 0) continue;
+    const id = Number(row.lineId);
+    const bill = bills.get(id);
+    if (!bill || seen.has(id)) {
+      errors.push("A ticked bill is no longer open; reload the list.");
+      continue;
+    }
+    seen.add(id);
+    if (amount > bill.openCents) errors.push(`${billLabel(bill)}: ${formatPeso(amount)} is more than the ${formatPeso(bill.openCents)} unpaid.`);
+    lines.push(
+      debit(bill.accountCode, amount, templateLine, {
+        party_id: bill.partyId,
+        party_name: bill.party,
+        memo: billLabel(bill),
+        settles_line_id: bill.lineId,
+      }),
+    );
+    labels.push(billLabel(bill));
+  }
+  return { lines, totalCents: lines.reduce((s, l) => s + l.debitCents, 0), labels };
+}

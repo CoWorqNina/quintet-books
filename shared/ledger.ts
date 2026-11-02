@@ -100,15 +100,31 @@ export interface PartyLine {
   description: string | null;
   debit: number | string;
   credit: number | string;
+  /** Line id, the bill line a payment settles, the bill's due date (from 0009_open_items). */
+  line_id?: number;
+  settles_line_id?: number | null;
+  due_date?: string | null;
+  memo?: string | null;
+  source_document?: string | null;
 }
 
 export interface OpenItem {
   entryId: number;
+  /** The bill's line, which a payment names to settle it. */
+  lineId?: number;
   date: string;
+  dueDate?: string | null;
   description: string | null;
+  memo?: string | null;
+  reference?: string | null;
+  party?: string | null;
+  /** Original amount, centavos. */
+  amountCents: number;
   /** Unpaid part, centavos, positive in the account's normal direction. */
   openCents: number;
   ageDays: number;
+  /** Days past the due date (0 when not yet due or no due date). */
+  overdueDays: number;
 }
 
 export const AGE_BUCKETS = [
@@ -123,33 +139,126 @@ export function daysBetween(from: string, to: string): number {
 }
 
 /**
- * Open items by first in, first out: amounts that increase the balance (credits for a
- * liability, debits for an asset) are open items; amounts that reduce it settle the oldest first.
+ * Open items of an account (or one party's lines), oldest first. A payment that names the bill it
+ * settles is applied to that bill; any other reduction is applied to the oldest bills (an advance
+ * paid before any bill waits for the next one).
  */
 export function openItems(lines: PartyLine[], normal: "debit" | "credit", asOf: string): { items: OpenItem[]; balanceCents: number } {
   const items: OpenItem[] = [];
+  const byLine = new Map<number, OpenItem>();
   let unapplied = 0; // reductions not yet matched (e.g. an advance payment)
+  const fifo = (amount: number) => {
+    let reduce = amount;
+    for (const it of items) {
+      if (!reduce) break;
+      const take = Math.min(it.openCents, reduce);
+      it.openCents -= take;
+      reduce -= take;
+    }
+    return reduce;
+  };
   for (const l of lines) {
     const up = normal === "credit" ? c(l.credit) - c(l.debit) : c(l.debit) - c(l.credit);
-    if (up > 0) {
+    const target = l.settles_line_id ? byLine.get(Number(l.settles_line_id)) : undefined;
+    if (target) {
+      // Paying a named bill (up < 0), or undoing such a payment (up > 0).
+      const change = Math.max(-target.openCents, Math.min(up, target.amountCents - target.openCents));
+      target.openCents += change;
+      const rest = up - change;
+      if (rest < 0) unapplied += fifo(-rest);
+      else if (rest > 0) unapplied = Math.max(0, unapplied - rest);
+    } else if (up > 0) {
       let open = up;
       const used = Math.min(open, unapplied);
       open -= used;
       unapplied -= used;
-      if (open) items.push({ entryId: l.entry_id, date: l.entry_date, description: l.description, openCents: open, ageDays: daysBetween(l.entry_date, asOf) });
+      const due = l.due_date ?? null;
+      const it: OpenItem = {
+        entryId: l.entry_id,
+        lineId: l.line_id,
+        date: l.entry_date,
+        dueDate: due,
+        description: l.description,
+        memo: l.memo ?? null,
+        reference: l.source_document ?? null,
+        party: l.party_name,
+        amountCents: up,
+        openCents: open,
+        ageDays: daysBetween(l.entry_date, asOf),
+        overdueDays: due ? Math.max(0, daysBetween(due, asOf)) : 0,
+      };
+      items.push(it);
+      if (l.line_id) byLine.set(Number(l.line_id), it);
     } else if (up < 0) {
-      let reduce = -up;
-      for (const it of items) {
-        if (!reduce) break;
-        const take = Math.min(it.openCents, reduce);
-        it.openCents -= take;
-        reduce -= take;
-      }
-      unapplied += reduce;
+      unapplied += fifo(-up);
     }
   }
   const open = items.filter((i) => i.openCents > 0);
   return { items: open, balanceCents: open.reduce((s, i) => s + i.openCents, 0) - unapplied };
+}
+
+/** An unpaid bill (payable line) that a payment can tick off. */
+export interface OpenBill {
+  lineId: number;
+  entryId: number;
+  book: Book;
+  accountCode: string;
+  partyId: string | null;
+  party: string | null;
+  date: string;
+  dueDate: string | null;
+  description: string | null;
+  memo: string | null;
+  reference: string | null;
+  amountCents: number;
+  /** Unpaid, by approved entries. */
+  openCents: number;
+  /** In payments still waiting for approval. */
+  pendingCents: number;
+}
+
+/**
+ * Unpaid bills on payable accounts (credit balance): per book and account, and per supplier on
+ * Accounts Payable, so a payment made without naming a bill settles that supplier's oldest bills.
+ */
+export function openBills(
+  lines: PartyLine[],
+  pending: { settles_line_id: number | string; amount: number | string }[],
+  asOf: string,
+  perParty: (accountCode: string) => boolean,
+): OpenBill[] {
+  const pendingBy = new Map<number, number>();
+  for (const p of pending) pendingBy.set(Number(p.settles_line_id), (pendingBy.get(Number(p.settles_line_id)) ?? 0) + c(p.amount));
+  const groups = groupBy(lines, (l) => `${l.book}|${l.account_code}|${perParty(l.account_code) ? (l.party_id ?? l.party_name ?? "") : ""}`);
+  const out: OpenBill[] = [];
+  for (const ls of groups.values()) {
+    for (const it of openItems(ls, "credit", asOf).items) {
+      if (!it.lineId) continue;
+      const line = ls.find((l) => Number(l.line_id) === it.lineId)!;
+      out.push({
+        lineId: it.lineId,
+        entryId: it.entryId,
+        book: line.book,
+        accountCode: line.account_code,
+        partyId: line.party_id,
+        party: line.party_name,
+        date: it.date,
+        dueDate: it.dueDate ?? null,
+        description: it.description,
+        memo: it.memo ?? null,
+        reference: it.reference ?? null,
+        amountCents: it.amountCents,
+        openCents: it.openCents,
+        pendingCents: pendingBy.get(it.lineId) ?? 0,
+      });
+    }
+  }
+  return out.sort((a, b) => (a.dueDate ?? a.date).localeCompare(b.dueDate ?? b.date) || a.lineId - b.lineId);
+}
+
+/** A short label for a bill: its memo or reference, else the entry description. */
+export function billLabel(b: Pick<OpenBill, "memo" | "reference" | "description">): string {
+  return b.memo || b.reference || b.description || "Bill";
 }
 
 export function bucketize(items: OpenItem[]): number[] {

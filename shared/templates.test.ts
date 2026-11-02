@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { isBalanced } from "./entries";
+import type { OpenBill } from "./ledger";
 import { getTemplate, type TemplateContext } from "./templates";
 import type { Account, Book, Party } from "./types";
 import testAccounts from "./test-accounts.json";
@@ -125,11 +126,56 @@ describe("purchase templates", () => {
     expect(r.entries[0].lines[1]).toMatchObject({ account_code: "2100", creditCents: 4200_00, party_id: "recSup" });
   });
 
-  it("#14-#18 supplier payment, advance, delivery, personal funds, reimbursement", () => {
-    expect(lines(build(14, { date: "2026-11-03", supplier: "recSup", amount: 4200, paidFrom: "1140", reference: "INV-9" }))).toEqual([
+  const bill = (lineId: number, accountCode: string, openCents: number, over: Partial<OpenBill> = {}): OpenBill => ({
+    lineId, entryId: lineId, book: "Store", accountCode, partyId: accountCode === "2100" ? "recSup" : null, party: "Davao Poultry",
+    date: "2026-10-30", dueDate: null, description: "Credit purchase", memo: `Invoice ${lineId}`, reference: null,
+    amountCents: openCents, openCents, pendingCents: 0, ...over,
+  });
+  const billsCtx = testCtx({ openBills: [bill(11, "2100", 4200_00), bill(12, "2100", 1000_00), bill(13, "2100", 500_00, { partyId: "recOther" }), bill(21, "2191", 3000_00), bill(22, "2191", 700_00)] });
+
+  it("#12 can be charged to an owner's card: the card owes it, named after the supplier", () => {
+    const r = build(12, { date: "2026-11-03", supplier: "recSup", paidFrom: "2191", reference: "OR 78", receipt: photo, lines: [chicken] });
+    expect(r.errors).toEqual([]);
+    expect(r.entries[0].lines[1]).toMatchObject({ account_code: "2191", creditCents: 4200_00, party_name: "Davao Poultry", memo: "Davao Poultry – OR 78" });
+    expect(build(12, { date: "2026-11-03", supplier: "recSup", paidFrom: "2113", reference: "x", receipt: photo, lines: [chicken] }).errors.join()).toMatch(/can't be used here/);
+  });
+
+  it("#14 pays the supplier's ticked invoices, each line naming the invoice; part payments allowed", () => {
+    const r = build(14, { date: "2026-11-03", supplier: "recSup", bills: [{ lineId: 11, amount: 4200 }, { lineId: 12, amount: 400 }], paidFrom: "1140" }, billsCtx);
+    expect(r.errors).toEqual([]);
+    expect(lines(r)).toEqual([
       ["2100", 4200_00, 0],
-      ["1140", 0, 4200_00],
+      ["2100", 400_00, 0],
+      ["1140", 0, 4600_00],
     ]);
+    expect(r.entries[0].lines.map((l) => l.settles_line_id)).toEqual([11, 12, undefined]);
+    expect(r.entries[0].lines[0]).toMatchObject({ party_id: "recSup", memo: "Invoice 11" });
+    // another supplier's invoice, more than unpaid, or nothing ticked
+    expect(build(14, { date: "2026-11-03", supplier: "recSup", bills: [{ lineId: 13, amount: 500 }], paidFrom: "1140" }, billsCtx).errors).toContain("A ticked bill is no longer open; reload the list.");
+    expect(build(14, { date: "2026-11-03", supplier: "recSup", bills: [{ lineId: 12, amount: 1000.01 }], paidFrom: "1140" }, billsCtx).errors.join()).toMatch(/more than the/);
+    expect(build(14, { date: "2026-11-03", supplier: "recSup", bills: [], paidFrom: "1140" }, billsCtx).errors).toContain("Bills paid is required.");
+  });
+
+  it("#14 paid with a card moves the debt to the card", () => {
+    const r = build(14, { date: "2026-11-03", supplier: "recSup", bills: [{ lineId: 11, amount: 4200 }], paidFrom: "2191" }, billsCtx);
+    expect(r.errors).toEqual([]);
+    expect(r.entries[0].lines[1]).toMatchObject({ account_code: "2191", creditCents: 4200_00, party_name: "Davao Poultry" });
+  });
+
+  it("#18 pays ticked card charges from a bank", () => {
+    const r = build(18, { date: "2026-11-04", person: "2191", bills: [{ lineId: 21, amount: 3000 }, { lineId: 22, amount: 700 }], paidFrom: "1140", reference: "EWB Nov 4" }, billsCtx);
+    expect(r.errors).toEqual([]);
+    expect(lines(r)).toEqual([
+      ["2191", 3000_00, 0],
+      ["2191", 700_00, 0],
+      ["1140", 0, 3700_00],
+    ]);
+    expect(r.entries[0].lines.map((l) => l.settles_line_id)).toEqual([21, 22, undefined]);
+    // a supplier invoice can't be ticked against a card
+    expect(build(18, { date: "2026-11-04", person: "2191", bills: [{ lineId: 11, amount: 1 }], paidFrom: "1140" }, billsCtx).errors).toContain("A ticked bill is no longer open; reload the list.");
+  });
+
+  it("#15-#17 advance, delivery, personal funds", () => {
     expect(lines(build(15, { date: "2026-11-03", supplier: "recSup", amount: 1000, paidFrom: "1150", reference: "GC1" }))).toEqual([
       ["1260", 1000_00, 0],
       ["1150", 0, 1000_00],
@@ -144,10 +190,7 @@ describe("purchase templates", () => {
       ["6610", 1500_00, 0],
       ["2113", 0, 1500_00],
     ]);
-    expect(lines(build(18, { date: "2026-11-05", person: "2113", amount: 1500, paidFrom: "1140", reference: "S&R Nov 4" }))).toEqual([
-      ["2113", 1500_00, 0],
-      ["1140", 0, 1500_00],
-    ]);
+    expect(build(17, { date: "2026-11-04", person: "2191", supplier: "S&R", receipt: photo, lines: [{ account: "6610", amount: 1 }] }).errors.join()).toMatch(/can't be used here/);
   });
 
   it("#30 small items under ₱3,000 only, paid or on credit", () => {
@@ -158,6 +201,11 @@ describe("purchase templates", () => {
       ["6620", 450_00, 0],
       ["1120", 0, 450_00],
     ]);
+    expect(build(30, { date: "2026-11-03", description: "Tongs", amount: 450, paidBy: "account", paidFrom: "2161", receipt: photo }).entries[0].lines[1]).toMatchObject({
+      account_code: "2161",
+      creditCents: 450_00,
+      memo: "Tongs",
+    });
     const credit = build(30, { date: "2026-11-03", description: "Scale", amount: 2500, paidBy: "credit", supplier: "recSup", receipt: photo });
     expect(credit.entries[0].lines[1]).toMatchObject({ account_code: "2100", party_name: "Davao Poultry" });
   });

@@ -1,7 +1,9 @@
 import { accountMatches } from "../../shared/accounts";
+import { todayManila } from "../lib/data";
 import type { Attachment } from "../../shared/entries";
 import { formatPeso, sumCents, toCents } from "../../shared/money";
-import { type Field, type Row, type TemplateContext, type Values, visibleFields } from "../../shared/templates";
+import { billLabel, type OpenBill } from "../../shared/ledger";
+import { billsFor, type Field, type Row, type TemplateContext, type Values, visibleFields } from "../../shared/templates";
 import type { Account, Party } from "../../shared/types";
 import { AttachmentPicker, MoneyInput } from "./inputs";
 
@@ -34,6 +36,10 @@ export function TemplateForm({
           <div key={f.name} className="span2">
             <RowsField field={f} rows={(values[f.name] as Row[]) ?? []} onChange={(rows) => set(f.name, rows)} {...{ ctx, accountList, parties }} />
           </div>
+        ) : f.type === "openItems" ? (
+          <div key={f.name} className="span2">
+            <BillsField field={f} bills={billsFor(f, values, ctx)} rows={(values[f.name] as Row[]) ?? []} onChange={(rows) => set(f.name, rows)} />
+          </div>
         ) : f.type === "checkbox" ? (
           <label key={f.name} className="inline span2">
             <input type="checkbox" checked={!!values[f.name]} onChange={(e) => set(f.name, e.target.checked)} />
@@ -48,6 +54,77 @@ export function TemplateForm({
           </label>
         ),
       )}
+    </div>
+  );
+}
+
+/** Unpaid bills with a tick box each; the amount defaults to what's unpaid and can be lowered. */
+function BillsField({ field, bills, rows, onChange }: { field: Field; bills: OpenBill[]; rows: Row[]; onChange: (rows: Row[]) => void }) {
+  const picked = new Map(rows.map((r) => [Number(r.lineId), r]));
+  const toggle = (b: OpenBill, on: boolean) =>
+    onChange(on ? [...rows, { lineId: b.lineId, amount: (Math.max(0, b.openCents - b.pendingCents) / 100).toFixed(2) }] : rows.filter((r) => Number(r.lineId) !== b.lineId));
+  const setAmount = (b: OpenBill, amount: string) => onChange(rows.map((r) => (Number(r.lineId) === b.lineId ? { ...r, amount } : r)));
+  const total = sumCents(rows.filter((r) => bills.some((b) => b.lineId === Number(r.lineId))).map((r) => toCents(r.amount as string)));
+  const today = todayManila();
+  const allOn = bills.length > 0 && bills.every((b) => picked.has(b.lineId));
+  return (
+    <div>
+      <span className="label">
+        {field.label}
+        {field.required ? " *" : ""}
+      </span>
+      {field.help && <small className="muted"> {field.help}</small>}
+      {bills.length === 0 ? (
+        <p className="muted">{field.itemsPartyField || field.itemsAccountField ? "No unpaid bills here (or choose above first)." : "No unpaid bills."}</p>
+      ) : (
+        <div className="table-wrap">
+          <table className="bills">
+            <thead>
+              <tr>
+                <th>
+                  <input
+                    type="checkbox"
+                    aria-label="Tick all"
+                    checked={allOn}
+                    onChange={(e) => onChange(e.target.checked ? bills.map((b) => picked.get(b.lineId) ?? { lineId: b.lineId, amount: (b.openCents / 100).toFixed(2) }) : [])}
+                  />
+                </th>
+                <th style={{ textAlign: "left" }}>Date</th>
+                <th style={{ textAlign: "left" }}>Due</th>
+                <th style={{ textAlign: "left" }}>Bill</th>
+                <th>Unpaid</th>
+                <th>Paying now</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bills.map((b) => {
+                const row = picked.get(b.lineId);
+                const overdue = b.dueDate && b.dueDate < today;
+                return (
+                  <tr key={b.lineId}>
+                    <td>
+                      <input type="checkbox" checked={!!row} onChange={(e) => toggle(b, e.target.checked)} />
+                    </td>
+                    <td>{b.date}</td>
+                    <td className={overdue ? "danger" : ""}>{b.dueDate ?? "—"}</td>
+                    <td>
+                      {billLabel(b)}
+                      {b.party && !billLabel(b).includes(b.party) && <span className="muted"> · {b.party}</span>}
+                      {b.pendingCents > 0 && <div className="danger small">{formatPeso(b.pendingCents)} already in a payment waiting for approval</div>}
+                    </td>
+                    <td className="num">{formatPeso(b.openCents)}</td>
+                    <td className="num">{row ? <MoneyInput value={row.amount as string} onChange={(v) => setAmount(b, v)} /> : ""}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <div className="row-actions">
+        <span className="spacer" />
+        {rows.length > 0 && <strong>Total {formatPeso(total)}</strong>}
+      </div>
     </div>
   );
 }

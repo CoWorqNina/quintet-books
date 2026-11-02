@@ -260,7 +260,10 @@ ledger.get("/sub/:kind", async (c) => {
     const lines = await partyLines(c.env, codes, asOf, book);
     return c.json({
       asOf,
-      people: codes.map((code) => ({ code, name: name(code), balanceCents: balance(lines.filter((l) => l.account_code === code), "credit") })),
+      people: codes.map((code) => {
+        const ls = lines.filter((l) => l.account_code === code);
+        return { code, name: name(code), balanceCents: balance(ls, "credit"), items: openItems(ls, "credit", asOf).items };
+      }),
     });
   }
 

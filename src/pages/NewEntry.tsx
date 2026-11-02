@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { GO_LIVE_DATE } from "../../shared/config";
 import { type LoanInfo, type Product, type TemplateContext, templatesFor, type Values } from "../../shared/templates";
+import type { OpenBill } from "../../shared/ledger";
 import type { AppUser, Book, JournalEntry } from "../../shared/types";
 import { EntryPreview } from "../components/EntryPreview";
 import { TemplateForm } from "../components/TemplateForm";
@@ -51,6 +52,8 @@ export default function NewEntry({ user, correcting }: { user: AppUser; correcti
   const needsLoans = template?.fields.some((f) => f.type === "loan");
   const products = useLoad<Product[]>(needsProducts ? "/products" : null).data;
   const loans = useLoad<LoanInfo[]>(needsLoans ? "/loans" : null).data;
+  const needsBills = template?.fields.some((f) => f.type === "openItems");
+  const openBills = useLoad<OpenBill[]>(needsBills ? "/open-bills" : null).data;
   const dueToCommissary = useLoad<{ cents: number }>(number === 21 ? "/balances/due-to-commissary" : null).data;
 
   const ctx: TemplateContext = useMemo(
@@ -62,8 +65,9 @@ export default function NewEntry({ user, correcting }: { user: AppUser; correcti
       products: new Map((products ?? []).map((p) => [p.id, p])),
       loans: new Map((loans ?? []).map((l) => [String(l.id), l])),
       dueToCommissaryCents: dueToCommissary?.cents,
+      openBills: openBills ?? [],
     }),
-    [template, book, profitCenter, accountList, parties, products, loans, dueToCommissary],
+    [template, book, profitCenter, accountList, parties, products, loans, dueToCommissary, openBills],
   );
 
   if (!template) return <p>Your role has no entry forms here.</p>;

@@ -20,7 +20,7 @@ import {
   type BuildResult,
   type Template,
 } from "./common";
-import { CAPITALIZE_FROM_CENTS } from "./purchases";
+import { CAPITALIZE_FROM_CENTS, paidLine } from "./purchases";
 
 const AP = "2100";
 export const PREPAID_EXPENSES = "1430";
@@ -58,7 +58,7 @@ export const assetPurchase: Template = {
     },
     { name: "cost", label: "Full cost (all installments)", type: "money", required: true },
     { name: "paidNow", label: "Paid now", type: "money", help: "Leave blank if all on credit" },
-    { name: "paidFrom", label: "Paid from", type: "account", filter: "payFrom" },
+    { name: "paidFrom", label: "Paid from / charged to", type: "account", filter: "payFromOrCard" },
     { name: "supplier", label: "Supplier (for any unpaid balance)", type: "party", partyType: "Supplier" },
     { name: "inUseDate", label: "Date put to use", type: "date", required: true },
     { name: "life", label: "Useful life (months)", type: "number", help: "Equipment 18, furniture 24, renovation 24" },
@@ -73,7 +73,7 @@ export const assetPurchase: Template = {
     const paidNow = Math.min(cents(v.paidNow), cost);
     const onCredit = cost - paidNow;
     if (cost && cost < CAPITALIZE_FROM_CENTS) errors.push(`${formatPeso(cost)} is under ₱3,000: record it as a Small Item (#30).`);
-    if (paidNow > 0) checkAccount(str(v.paidFrom), "payFrom", "Paid from", ctx, errors);
+    if (paidNow > 0) checkAccount(str(v.paidFrom), "payFromOrCard", "Paid from", ctx, errors);
     const supplier = onCredit > 0 ? checkParty(str(v.supplier), "Supplier", "Supplier", ctx, errors) : undefined;
     if (onCredit > 0 && !str(v.supplier)) errors.push(`Choose the supplier for the unpaid ${formatPeso(onCredit)}.`);
 
@@ -91,7 +91,7 @@ export const assetPurchase: Template = {
       `Asset: ${name}${v.popup ? " (purchased for pop-ups)" : ""}`,
       [
         debit(str(v.assetClass), cost, "29.asset", { party_name: name, memo: `Tag: ${tag}` }),
-        credit(str(v.paidFrom), paidNow, "29.paid"),
+        paidLine(ctx, str(v.paidFrom), paidNow, "29.paid", supplier?.name ?? null, name),
         credit(AP, onCredit, "29.ap", partyExtras(supplier)),
       ],
       { attachments: attachmentsOf(v.receipt) },
