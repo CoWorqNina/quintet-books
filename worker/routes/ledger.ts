@@ -15,6 +15,7 @@ import {
   trialBalanceTotals,
   yearStart,
 } from "../../shared/ledger";
+import { CARDS_PAYABLE } from "../../shared/accounts";
 import { addMonths } from "../../shared/loans";
 import { toCents } from "../../shared/money";
 import { isLoanAccount, splitLoan } from "../../shared/statements";
@@ -255,7 +256,7 @@ ledger.get("/sub/:kind", async (c) => {
   }
 
   if (kind === "reimbursements") {
-    const codes = children(accounts, "2110");
+    const codes = [...children(accounts, CARDS_PAYABLE), ...children(accounts, "2110")];
     const lines = await partyLines(c.env, codes, asOf, book);
     return c.json({
       asOf,

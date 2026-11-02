@@ -18,7 +18,7 @@ const KINDS = [
   { key: "employees", label: "Employee receivables" },
   { key: "loans", label: "Loans: current, long-term & interest" },
   { key: "owners", label: "Owners: loans, advances, food allowance" },
-  { key: "reimbursements", label: "Reimbursements" },
+  { key: "reimbursements", label: "Cards & Reimbursements" },
   { key: "deposits", label: "Security deposits" },
   { key: "clearing", label: "Card / Grab / Foodpanda" },
 ];
@@ -417,7 +417,7 @@ function Owners({ data }: { data: { month: string; loans: { party: string; balan
 }
 
 function Reimbursements({ data }: { data: { people: { code: string; name: string; balanceCents: number }[] } }) {
-  return <PartyTable title="Reimbursements payable" rows={data.people.map((p) => ({ party: `${p.code} ${p.name.replace(/^Reimbursements Payable – /, "")}`, balanceCents: p.balanceCents }))} empty="" />;
+  return <PartyTable title="Credit cards, SPayLater & reimbursements payable" rows={data.people.map((p) => ({ party: `${p.code} ${p.name.replace(/^Reimbursements Payable – /, "")}`, balanceCents: p.balanceCents }))} empty="" />;
 }
 
 function Clearing({ data }: { data: { buckets: string[]; accounts: { code: string; name: string; limitDays: number; balanceCents: number; buckets: number[]; overdue: OpenItem[]; items: OpenItem[] }[] } }) {
