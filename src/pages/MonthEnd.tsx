@@ -290,7 +290,8 @@ const emptyCountLine = (): CountLine => ({ item: "", unit: "", quantity: "", uni
 
 function CountForm({ period, location, user, onSaved }: { period: string; location: Location; user: AppUser; onSaved: () => void }) {
   const accountList = useAccounts();
-  const ingredients = accountList.filter((a) => /^51\d\d$/.test(a.code) && !a.isHeader && a.code !== "5199");
+  // Food and packaging (GGC 51xx, The Nest 52xx), plus cleaning and store supplies (6610).
+  const ingredients = accountList.filter((a) => (/^5[12]\d\d$/.test(a.code) && a.code !== "5199") || a.code === "6610").filter((a) => !a.isHeader);
   const start = location.count?.lines ?? location.previous?.lines.map((l) => ({ ...l, quantity: "" })) ?? [];
   const [lines, setLines] = useState<CountLine[]>(start.length ? start : [emptyCountLine()]);
   const [notes, setNotes] = useState(location.count?.notes ?? "");

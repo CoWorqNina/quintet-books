@@ -129,7 +129,7 @@ describe("inventory adjustment", () => {
       "GGC",
       [{ item: "Rice", unit: "kg", quantity: 20, unit_value: 50, account: "5100" }],
       [{ item: "Rice", unit: "kg", quantity: 30, unit_value: 50, account: "5100" }, { item: "Oil", unit: "L", quantity: 2, unit_value: 100, account: "5150" }],
-      1600_00,
+      { food: 1600_00, supplies: 0 },
     )!;
     expect(g.details).toEqual([
       { label: "Rice", cents: -500_00 },
@@ -139,6 +139,21 @@ describe("inventory adjustment", () => {
     expect(isBalanced(g.entry)).toBe(true);
     const net = g.entry.lines.filter((l) => l.account_code === "1300").reduce((s, l) => s + l.debitCents - l.creditCents, 0);
     expect(1600_00 + net).toBe(1000_00);
+  });
+});
+
+describe("supplies inventory", () => {
+  it("cleaning supplies move between 1310 and 6610, apart from food", () => {
+    const g = inventoryAdjustment(
+      "2026-11", "Store", "GGC",
+      [{ item: "Dishwashing", unit: "gal", quantity: 4, unit_value: 199, account: "6610" }, { item: "Rice", unit: "sack", quantity: 1, unit_value: 1250, account: "5100" }],
+      [{ item: "Dishwashing", unit: "gal", quantity: 7, unit_value: 199, account: "6610" }, { item: "Rice", unit: "sack", quantity: 1, unit_value: 1250, account: "5100" }],
+      { food: 1250_00, supplies: 1393_00 },
+    )!;
+    expect(g.entry.lines.map((l) => [l.account_code, l.debitCents, l.creditCents])).toEqual([
+      ["1310", 0, 597_00],
+      ["6610", 597_00, 0],
+    ]);
   });
 });
 

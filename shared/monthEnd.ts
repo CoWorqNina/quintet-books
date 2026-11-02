@@ -256,10 +256,18 @@ export interface CountLine {
 
 export const countValue = (l: CountLine) => Math.round(Number(l.quantity) * toCents(Number(l.unit_value)));
 
+export const SUPPLIES_INVENTORY = "1310";
+export const SUPPLIES_EXPENSE = "6610";
+
+/** Cleaning and store supplies are counted too, but kept apart from food and packaging. */
+export const isSupplyLine = (l: Pick<CountLine, "account">) => !/^5[12]\d\d$/.test(l.account);
+
 /**
  * Inventory adjustment for one book and profit center: per item, this count's value against
- * the last count. Any gap between the last count and the ledger's inventory balance (e.g. the
- * opening balance before the first count) is shown on its own line so the ledger ends at the count.
+ * the last count. Food and packaging move between 1300 Inventory and 5199 Inventory Adjustment;
+ * cleaning and store supplies between 1310 Supplies Inventory and 6610 Store & Kitchen Supplies.
+ * Any gap between the last count and the ledger (e.g. the opening balance before the first
+ * count) is shown on its own line so the ledger ends at the count.
  */
 export function inventoryAdjustment(
   period: string,
@@ -267,33 +275,39 @@ export function inventoryAdjustment(
   pc: ProfitCenter,
   count: CountLine[],
   previous: CountLine[],
-  ledgerCents: number,
+  ledger: { food: number; supplies: number },
 ): Generated | null {
-  const prev = new Map(previous.map((l) => [l.item.toLowerCase(), l]));
   const details: Generated["details"] = [];
   const lines: LineDraft[] = [];
-  const seen = new Set<string>();
-  const move = (label: string, cents: number) => {
-    if (!cents) return;
-    details.push({ label, cents });
-    lines.push(
-      // Inventory lines carry the profit center so each location's stock can be told apart.
-      cents > 0
-        ? debit(INVENTORY, cents, "gen.inventory", { party_name: label, profit_center: pc })
-        : credit(INVENTORY, -cents, "gen.inventory", { party_name: label, profit_center: pc }),
-      cents > 0
-        ? credit(INVENTORY_ADJUSTMENT, cents, "gen.adjustment", { profit_center: pc, memo: label })
-        : debit(INVENTORY_ADJUSTMENT, -cents, "gen.adjustment", { profit_center: pc, memo: label }),
-    );
-  };
-  for (const l of count) {
-    const key = l.item.toLowerCase();
-    seen.add(key);
-    move(l.item, countValue(l) - (prev.get(key) ? countValue(prev.get(key)!) : 0));
+  for (const supplies of [false, true]) {
+    const asset = supplies ? SUPPLIES_INVENTORY : INVENTORY;
+    const other = supplies ? SUPPLIES_EXPENSE : INVENTORY_ADJUSTMENT;
+    const now = count.filter((l) => isSupplyLine(l) === supplies);
+    const before = previous.filter((l) => isSupplyLine(l) === supplies);
+    const prev = new Map(before.map((l) => [l.item.toLowerCase(), l]));
+    const move = (label: string, cents: number) => {
+      if (!cents) return;
+      details.push({ label: supplies ? `${label} (supplies)` : label, cents });
+      lines.push(
+        // Inventory lines carry the profit center so each location's stock can be told apart.
+        cents > 0
+          ? debit(asset, cents, "gen.inventory", { party_name: label, profit_center: pc })
+          : credit(asset, -cents, "gen.inventory", { party_name: label, profit_center: pc }),
+        cents > 0
+          ? credit(other, cents, "gen.adjustment", { profit_center: pc, memo: label })
+          : debit(other, -cents, "gen.adjustment", { profit_center: pc, memo: label }),
+      );
+    };
+    const seen = new Set<string>();
+    for (const l of now) {
+      const key = l.item.toLowerCase();
+      seen.add(key);
+      move(l.item, countValue(l) - (prev.get(key) ? countValue(prev.get(key)!) : 0));
+    }
+    for (const l of before) if (!seen.has(l.item.toLowerCase())) move(l.item, -countValue(l));
+    const previousTotal = before.reduce((s, l) => s + countValue(l), 0);
+    move("Difference between the ledger and the last count", previousTotal - (supplies ? ledger.supplies : ledger.food));
   }
-  for (const l of previous) if (!seen.has(l.item.toLowerCase())) move(l.item, -countValue(l));
-  const previousTotal = previous.reduce((s, l) => s + countValue(l), 0);
-  move("Difference between the ledger and the last count", previousTotal - ledgerCents);
   return adjusting("inventory", book, period, lines, details);
 }
 
