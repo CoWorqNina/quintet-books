@@ -35,9 +35,10 @@ export default function NewEntry({ user, correcting }: { user: AppUser; correcti
   const [number, setNumber] = useState(saved?.template ?? (Number(params.get("template")) || templates[0]?.number || 0));
   const template = templates.find((t) => t.number === number);
   const books = (template?.books ?? []).filter((b) => user.books.includes(b));
-  const [book, setBook] = useState<Book>(saved?.book ?? books[0] ?? "Store");
+  const linkBook = params.get("book") as Book | null;
+  const [book, setBook] = useState<Book>(saved?.book ?? (linkBook && books.includes(linkBook) ? linkBook : books[0]) ?? "Store");
   const [profitCenter, setProfitCenter] = useState<"GGC" | "The Nest">(saved?.profitCenter ?? pcs[0] ?? "GGC");
-  const [values, setValues] = useState<Values>(saved?.values ?? { date: todayManila() });
+  const [values, setValues] = useState<Values>(saved?.values ?? { date: todayManila(), ...prefill(params) });
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -182,4 +183,16 @@ export default function NewEntry({ user, correcting }: { user: AppUser; correcti
       </div>
     </section>
   );
+}
+
+/**
+ * Values passed in the link (e.g. from Payables): ?template=14&supplier=rec…&bill=123&amount=8550.00
+ * fills the supplier and ticks that bill.
+ */
+function prefill(params: URLSearchParams): Values {
+  const v: Values = {};
+  for (const [k, val] of params) if (!["template", "bill", "amount", "book"].includes(k)) v[k] = val;
+  const bill = params.get("bill");
+  if (bill) v.bills = [{ lineId: Number(bill), amount: params.get("amount") ?? "" }];
+  return v;
 }

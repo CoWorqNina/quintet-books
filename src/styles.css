@@ -163,3 +163,7 @@ ol.summary li { margin: 0.35rem 0; }
 .shell main:has(section.wide) { max-width: 1400px; }
 .wide table { font-size: 0.85rem; }
 table.bills td input[type="checkbox"] { width: auto; } table.bills .small { font-size: 0.8rem; } table.bills td.num input { max-width: 8rem; text-align: right; }
+.small { font-size: 0.8rem; }
+tr.group-row td { background: #f6f4ef; }
+label.chip { flex-direction: row; display: inline-flex; margin: 0; } label.chip input { width: auto; }
+table.payables td { white-space: normal; vertical-align: top; } table.payables td.num { white-space: nowrap; }
