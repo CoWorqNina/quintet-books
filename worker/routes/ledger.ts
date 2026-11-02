@@ -256,7 +256,7 @@ ledger.get("/sub/:kind", async (c) => {
   }
 
   if (kind === "reimbursements") {
-    const codes = [...children(accounts, CARDS_PAYABLE), ...children(accounts, "2110")];
+    const codes = [...CARDS_PAYABLE.flatMap((h) => children(accounts, h)), ...children(accounts, "2110")];
     const lines = await partyLines(c.env, codes, asOf, book);
     return c.json({
       asOf,

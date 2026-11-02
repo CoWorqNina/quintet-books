@@ -110,8 +110,8 @@ export function isStoreCashAccount(a: Account | undefined): a is Account {
   return !!a && a.active && !a.isHeader && a.isCashAccount && bookAllowed(a, "Store");
 }
 
-/** Header for owners' credit cards and SPayLater accounts used to pay suppliers. */
-export const CARDS_PAYABLE = "2190";
+/** Headers for owners' SPayLater (2160) and credit card (2190) accounts used to pay suppliers. */
+export const CARDS_PAYABLE = ["2160", "2190"];
 
 export type AccountFilter =
   | "expense" // COGS or operating expense ("expense line")
@@ -119,7 +119,7 @@ export type AccountFilter =
   | "payFrom" // bank, e-wallet or the profit center's petty cash
   | "receiveInto" // bank, e-wallet or cash on hand
   | "cash" // any cash account in the book
-  | "reimbursement" // Reimbursements Payable per person (2111-2114) and owners' credit cards / SPayLater (2190)
+  | "reimbursement" // Reimbursements Payable per person (2111-2114) and owners' SPayLater / credit cards (2160, 2190)
   | "ppe" // property & equipment classes
   | "deposit" // refundable deposits
   | "employeeReceivable" // 1241-1244
@@ -150,7 +150,7 @@ export function accountMatches(filter: AccountFilter, a: Account | undefined, ct
     case "cash":
       return a.isCashAccount;
     case "reimbursement":
-      return a.parentCode === "2110" || a.parentCode === CARDS_PAYABLE;
+      return a.parentCode === "2110" || CARDS_PAYABLE.includes(a.parentCode ?? "");
     case "ppe":
       // 1550 Smallwares (legacy) takes no new additions from Nov 1, 2026
       return a.parentCode === "1500" && a.type === "Asset" && a.code !== "1550";

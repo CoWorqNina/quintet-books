@@ -230,7 +230,7 @@ export const BS_LINES: BsLine[] = [
   { section: "noncurrent-assets", label: "Deferred charges, net of amortization", match: parent("1600") },
   { section: "noncurrent-assets", label: "Refundable deposits", match: (c, a) => a?.parentCode === "1400" && c !== "1430" },
   { section: "current-liabilities", label: "Accounts payable – suppliers", match: codes("2100") },
-  { section: "current-liabilities", label: "Credit cards & SPayLater payable", match: parent("2190") },
+  { section: "current-liabilities", label: "Credit cards & SPayLater payable", match: (_, a) => a?.parentCode === "2160" || a?.parentCode === "2190" },
   { section: "current-liabilities", label: "Reimbursements payable", match: parent("2110") },
   { section: "current-liabilities", label: "Accrued expenses", match: codes("2120") },
   { section: "current-liabilities", label: "Salaries & wages payable", match: codes("2130") },
