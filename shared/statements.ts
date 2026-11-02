@@ -256,7 +256,16 @@ export const BS_SECTIONS: { key: BsSection; title: string; total: string }[] = [
   { key: "equity", title: "Equity", total: "Total Equity" },
 ];
 
-const isLoanAccount = (code: string, a: Account | undefined) => a?.parentCode === "2200" && !["2250", "2260"].includes(code);
+export const isLoanAccount = (code: string, a: Account | undefined) => a?.parentCode === "2200" && !["2250", "2260"].includes(code);
+
+/**
+ * Current vs long-term part of a loan: from its schedule (principal due within 12 months), or,
+ * for a loan with no schedule, all current (payable on demand). Centavos, positive.
+ */
+export function splitLoan(owedCents: number, dueWithinYearCents: number | undefined): { currentCents: number; longTermCents: number } {
+  const current = dueWithinYearCents === undefined ? owedCents : Math.max(0, Math.min(owedCents, dueWithinYearCents));
+  return { currentCents: current, longTermCents: owedCents - current };
+}
 
 /**
  * One column of the balance sheet (debit-positive balances). Loans are split using
@@ -288,10 +297,9 @@ export function balanceSheetColumn(
       continue;
     }
     if (isLoanAccount(r.code, a)) {
-      const owed = -r.balanceCents;
-      const current = Math.max(0, Math.min(owed, loanCurrent.get(r.code) ?? 0));
-      add("current-liabilities", LOANS_CURRENT, -current, r.code);
-      add("noncurrent-liabilities", LOANS_LATER, -(owed - current), r.code);
+      const { currentCents, longTermCents } = splitLoan(-r.balanceCents, loanCurrent.get(r.code));
+      add("current-liabilities", LOANS_CURRENT, -currentCents, r.code);
+      add("noncurrent-liabilities", LOANS_LATER, -longTermCents, r.code);
       continue;
     }
     const line = BS_LINES.find((l) => l.match(r.code, a));

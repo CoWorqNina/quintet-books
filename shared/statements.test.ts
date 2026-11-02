@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { brandIncomeStatement, ratios } from "./managementReport";
 import type { AccountTotal } from "./ledger";
-import { balanceSheet, balanceSheetColumn, cashAccounts, cashFlows, type CashLine, incomeStatement, pcOf, type StatementTotal } from "./statements";
+import { balanceSheet, balanceSheetColumn, splitLoan, cashAccounts, cashFlows, type CashLine, incomeStatement, pcOf, type StatementTotal } from "./statements";
 import testAccounts from "./test-accounts.json";
 import type { Account } from "./types";
 
@@ -75,6 +75,19 @@ describe("balance sheet", () => {
     expect(v("Accrued interest payable")).toBe(-500_00);
     expect(v("Net income, year to date")).toBe(-8500_00);
     expect(v("Due from Store")).toBeUndefined();
+  });
+  it("a loan with no schedule is payable on demand, so current", () => {
+    const col2 = balanceSheetColumn([...tb, at("Store", "2230", -200000), at("Store", "3100", 200000)], accounts, "Combined", new Map([["2210", 12000_00]]));
+    const rows2 = balanceSheet([{ key: "now", data: col2 }]);
+    expect(rows2.find((r) => r.label === "Loans payable – due within 12 months")!.values.now).toBe(-212000_00);
+    expect(rows2.find((r) => r.label === "Loans payable – due after 12 months")!.values.now).toBe(-12000_00);
+  });
+});
+
+describe("current vs long-term loans", () => {
+  it("splits by the schedule, or all current without one", () => {
+    expect(splitLoan(100_00, 30_00)).toEqual({ currentCents: 30_00, longTermCents: 70_00 });
+    expect(splitLoan(100_00, undefined)).toEqual({ currentCents: 100_00, longTermCents: 0 });
   });
 });
 

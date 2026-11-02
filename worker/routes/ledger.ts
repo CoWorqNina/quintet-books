@@ -15,7 +15,9 @@ import {
   trialBalanceTotals,
   yearStart,
 } from "../../shared/ledger";
+import { addMonths } from "../../shared/loans";
 import { toCents } from "../../shared/money";
+import { isLoanAccount, splitLoan } from "../../shared/statements";
 import type { Account, Book } from "../../shared/types";
 import { seesEverything, todayManila } from "../access";
 import { getAccounts } from "../airtable";
@@ -160,25 +162,55 @@ ledger.get("/sub/:kind", async (c) => {
   }
 
   if (kind === "loans") {
+    // Every loan, split into what's due within 12 months (current) and later (long-term).
     // Principal sits in each loan's own Loans Payable account; interest owed sits in 2250
-    // Accrued Interest Payable, tagged to its loan ("loan:<id>"). Shown side by side, never mixed.
+    // Accrued Interest Payable, tagged to its loan ("loan:<id>"). Loans with a schedule split by
+    // it; loans with none are payable on demand (current); owner loans are long-term.
     const registers = await loadRegisters(serviceClient(c.env));
     const loans = (registers.loans ?? []).filter((l) => l.in_force && (!book || l.book === book));
-    const lines = await partyLines(c.env, ["2250", ...new Set(loans.map((l) => l.account_code))], asOf, book);
+    const loanCodes = [...accounts.values()].filter((a) => isLoanAccount(a.code, a)).map((a) => a.code);
+    const lines = await partyLines(c.env, ["2250", "2260", ...new Set([...loanCodes, ...loans.map((l) => l.account_code)])], asOf, book);
     const interest = lines.filter((l) => l.account_code === "2250");
+    const limit = addMonths(asOf, 12);
     const rows = loans.map((l) => {
-      const paid = (l.installments ?? []).filter((i) => i.paid);
+      const inst = l.installments ?? [];
+      const principalCents = balance(lines.filter((x) => x.account_code === l.account_code), "credit");
+      const dueWithin = inst.filter((i) => !i.paid && i.due_date <= limit).reduce((s, i) => s + toCents(Number(i.principal)), 0);
       return {
-        id: l.id,
+        id: l.id as number | null,
         name: l.name,
         lender: (l as { lender_name?: string }).lender_name ?? "",
         accountCode: l.account_code,
-        principalCents: balance(lines.filter((x) => x.account_code === l.account_code), "credit"),
-        trackerCents: toCents(Number(l.principal)) - paid.reduce((s, i) => s + toCents(Number(i.principal)), 0),
+        scheduled: true,
+        principalCents,
+        trackerCents: toCents(Number(l.principal)) - inst.filter((i) => i.paid).reduce((s, i) => s + toCents(Number(i.principal)), 0),
         interestPayableCents: balance(interest.filter((x) => x.party_id === `loan:${l.id}`), "credit"),
+        ...splitLoan(principalCents, dueWithin),
         approved: !l.entry_id || l.entry_status === "Approved",
       };
     });
+    // Loans without a schedule: payable on demand.
+    for (const code of loanCodes.filter((c) => !loans.some((l) => l.account_code === c))) {
+      const ls = lines.filter((x) => x.account_code === code);
+      const principalCents = balance(ls, "credit");
+      if (!principalCents) continue;
+      rows.push({
+        id: null,
+        name: accounts.get(code)?.name.replace(/^Loans Payable – /, "") ?? code,
+        lender: [...new Set(ls.map((x) => x.party_name).filter(Boolean))].join(", "),
+        accountCode: code,
+        scheduled: false,
+        principalCents,
+        trackerCents: principalCents,
+        interestPayableCents: 0,
+        ...splitLoan(principalCents, undefined),
+        approved: true,
+      });
+    }
+    const ownerLoansCents = balance(lines.filter((x) => x.account_code === "2260"), "credit");
+    if (ownerLoansCents) {
+      rows.push({ id: null, name: "Owner loans", lender: "Owners (see Owners sub-ledger)", accountCode: "2260", scheduled: false, principalCents: ownerLoansCents, trackerCents: ownerLoansCents, interestPayableCents: 0, currentCents: 0, longTermCents: ownerLoansCents, approved: true });
+    }
     const untagged = interest.filter((x) => !x.party_id?.startsWith("loan:"));
     return c.json({
       asOf,
@@ -210,6 +242,16 @@ ledger.get("/sub/:kind", async (c) => {
       if (!allowance.some((a) => a.owner === owner)) allowance.push({ owner, takenCents: 0, allowanceCents: OWNER_FOOD_ALLOWANCE_CENTS, chargedBackCents: 0, stillAboveCents: 0, owedCents });
     }
     return c.json({ asOf, month: asOf.slice(0, 7), loans: per("2260", "credit"), advances: per("1250", "debit"), allowance });
+  }
+
+  if (kind === "deposits") {
+    // Security and other refundable deposits, one line per deposit.
+    const codes = [...accounts.values()].filter((x) => x.parentCode === "1400" && x.code !== "1430" && !x.isHeader).map((x) => x.code);
+    const lines = await partyLines(c.env, codes, asOf, book);
+    const deposits = [...groupBy(lines, (l) => `${l.account_code}|${l.party_name ?? ""}`).values()]
+      .map((ls) => ({ code: ls[0].account_code, account: name(ls[0].account_code), deposit: ls[0].party_name ?? "(no description)", balanceCents: balance(ls, "debit") }))
+      .filter((d) => d.balanceCents);
+    return c.json({ asOf, deposits, controlCents: balance(lines, "debit") });
   }
 
   if (kind === "reimbursements") {

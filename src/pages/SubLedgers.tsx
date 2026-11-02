@@ -16,9 +16,10 @@ interface OpenItem {
 const KINDS = [
   { key: "ap", label: "Accounts payable" },
   { key: "employees", label: "Employee receivables" },
-  { key: "loans", label: "Loans & interest payable" },
+  { key: "loans", label: "Loans: current, long-term & interest" },
   { key: "owners", label: "Owners: loans, advances, food allowance" },
   { key: "reimbursements", label: "Reimbursements" },
+  { key: "deposits", label: "Security deposits" },
   { key: "clearing", label: "Card / Grab / Foodpanda" },
 ];
 
@@ -51,6 +52,9 @@ export function SubLedgers() {
       {ready && kind === "loans" && "interestControlCents" in data && <Loans data={data} />}
       {ready && kind === "owners" && "advances" in data && <Owners data={data} />}
       {ready && kind === "reimbursements" && "people" in data && !("accounts" in data) && <Reimbursements data={data} />}
+      {ready && kind === "deposits" && "deposits" in data && (
+        <PartyTable title="Security and refundable deposits" rows={data.deposits.map((d: { code: string; deposit: string; balanceCents: number }) => ({ party: `${d.code} · ${d.deposit}`, balanceCents: d.balanceCents }))} empty="No deposits." />
+      )}
       {ready && kind === "clearing" && "accounts" in data && "buckets" in data && <Clearing data={data} />}
     </>
   );
@@ -232,25 +236,48 @@ function PartyTable({ title, rows, empty }: { title: string; rows: { party: stri
 }
 
 interface LoanRow {
-  id: number;
+  id: number | null;
   name: string;
   lender: string;
   accountCode: string;
+  /** Has a Loan Tracker schedule. */
+  scheduled: boolean;
   principalCents: number;
   trackerCents: number;
   interestPayableCents: number;
+  /** Principal due within 12 months of the as-of date. */
+  currentCents: number;
+  longTermCents: number;
   approved: boolean;
 }
 
 function Loans({ data }: { data: { loans: LoanRow[]; untaggedInterestCents: number; untaggedEntries: number[]; interestControlCents: number } }) {
-  const totalPrincipal = data.loans.reduce((s, l) => s + l.principalCents, 0);
-  const totalInterest = data.loans.reduce((s, l) => s + l.interestPayableCents, 0) + data.untaggedInterestCents;
+  const sum = (k: "principalCents" | "currentCents" | "longTermCents" | "interestPayableCents") => data.loans.reduce((s, l) => s + l[k], 0);
+  const totalInterest = sum("interestPayableCents") + data.untaggedInterestCents;
   return (
     <>
       <p className="muted">
-        Principal stays in each loan's own Loans Payable account. Interest owed but not yet paid sits in 2250 Accrued Interest Payable, tagged to
-        its loan, and is cleared when the installment is paid.
+        Current = principal due within 12 months of the as-of date (from each loan's schedule; a loan with no schedule is payable on demand, so
+        current). Long-term = due later; owner loans are long-term. Interest payable (2250) is always current and kept apart from principal.
       </p>
+      <div className="grid4">
+        <div className="card">
+          <span className="muted">Current loans (within 12 months)</span>
+          <h2>{peso(sum("currentCents"))}</h2>
+        </div>
+        <div className="card">
+          <span className="muted">Long-term loans</span>
+          <h2>{peso(sum("longTermCents"))}</h2>
+        </div>
+        <div className="card">
+          <span className="muted">Interest payable</span>
+          <h2>{peso(totalInterest)}</h2>
+        </div>
+        <div className="card">
+          <span className="muted">Total owed</span>
+          <h2>{peso(sum("principalCents") + totalInterest)}</h2>
+        </div>
+      </div>
       <div className="table-wrap">
         <table>
           <thead>
@@ -258,39 +285,44 @@ function Loans({ data }: { data: { loans: LoanRow[]; untaggedInterestCents: numb
               <th>Loan</th>
               <th>Account</th>
               <th className="num">Principal owed</th>
-              <th className="num">Loan Tracker</th>
+              <th className="num">Current (≤ 12 months)</th>
+              <th className="num">Long-term</th>
               <th className="num">Interest payable</th>
               <th className="num">Total owed</th>
+              <th className="num">Loan Tracker</th>
             </tr>
           </thead>
           <tbody>
             {data.loans.map((l) => (
-              <tr key={l.id}>
+              <tr key={`${l.accountCode}-${l.id ?? "x"}`}>
                 <td>
                   {l.name}
                   {l.lender && <span className="muted"> · {l.lender}</span>}
+                  {!l.scheduled && l.accountCode !== "2260" && <span className="badge">On demand</span>}
                   {!l.approved && <span className="badge info">Waiting for approval</span>}
                 </td>
                 <td>{l.accountCode}</td>
                 <td className="num">{peso(l.principalCents)}</td>
-                <td className={`num ${l.trackerCents !== l.principalCents ? "error" : "muted"}`}>{peso(l.trackerCents)}</td>
+                <td className="num">{peso(l.currentCents)}</td>
+                <td className="num">{peso(l.longTermCents)}</td>
                 <td className="num">{peso(l.interestPayableCents)}</td>
                 <td className="num">{peso(l.principalCents + l.interestPayableCents)}</td>
+                <td className={`num ${l.scheduled && l.trackerCents !== l.principalCents ? "error" : "muted"}`}>{l.scheduled ? peso(l.trackerCents) : "—"}</td>
               </tr>
             ))}
             {data.untaggedInterestCents !== 0 && (
               <tr>
-                <td colSpan={4} className="error">
+                <td colSpan={5} className="error">
                   Interest not tagged to a loan (entries {data.untaggedEntries.map((id) => `#${id}`).join(", ")}): correct these entries
                 </td>
                 <td className="num error">{peso(data.untaggedInterestCents)}</td>
-                <td />
+                <td colSpan={2} />
               </tr>
             )}
             {!data.loans.length && (
               <tr>
-                <td colSpan={6} className="muted">
-                  No loans yet. Loans come from #33 Loan Proceeds or Registers → Add go-live record.
+                <td colSpan={8} className="muted">
+                  No loans yet. Loans come from #33 Loan Proceeds, Registers → Add go-live record, or the opening balances.
                 </td>
               </tr>
             )}
@@ -298,10 +330,12 @@ function Loans({ data }: { data: { loans: LoanRow[]; untaggedInterestCents: numb
           <tfoot>
             <tr className="header-row">
               <td colSpan={2}>Total</td>
-              <td className="num">{peso(totalPrincipal)}</td>
-              <td />
+              <td className="num">{peso(sum("principalCents"))}</td>
+              <td className="num">{peso(sum("currentCents"))}</td>
+              <td className="num">{peso(sum("longTermCents"))}</td>
               <td className="num">{peso(totalInterest)}</td>
-              <td className="num">{peso(totalPrincipal + totalInterest)}</td>
+              <td className="num">{peso(sum("principalCents") + totalInterest)}</td>
+              <td />
             </tr>
           </tfoot>
         </table>
