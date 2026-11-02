@@ -84,7 +84,7 @@ export default function App() {
           {canEnter && <NavLink to="/entries/new">New entry</NavLink>}
           {isOwner && <NavLink to="/approvals">Approvals</NavLink>}
           <NavLink to="/journal">Journal</NavLink>
-          {isBooks && <NavLink to="/cash">Cash & Receivables</NavLink>}
+          {isBooks && <NavLink to="/cash">Cash Register</NavLink>}
           {isBooks && <NavLink to="/payables">Payables</NavLink>}
           {isBooks && <NavLink to="/report">Report</NavLink>}
           {isBooks && <NavLink to="/statements">Statements</NavLink>}

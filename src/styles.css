@@ -170,3 +170,5 @@ table.payables td { white-space: normal; vertical-align: top; } table.payables t
 tr.clickable { cursor: pointer; } tr.clickable:hover td { background: #faf8f3; }
 td.detail-cell { background: #fcfbf9; padding: 0.75rem 1rem; }
 table.movements th { position: static; }
+table.movements td { white-space: normal; vertical-align: top; } table.movements td.num { white-space: nowrap; }
+table.movements td:first-child { white-space: nowrap; } table.movements td:nth-child(2) { min-width: 18rem; }
