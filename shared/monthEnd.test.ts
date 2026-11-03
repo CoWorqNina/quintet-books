@@ -122,23 +122,51 @@ describe("13th month", () => {
 });
 
 describe("inventory adjustment", () => {
-  it("per item change from the last count, plus any gap with the ledger", () => {
+  it("other food (counted only): per item change from the last count, plus any gap with the ledger", () => {
     const g = inventoryAdjustment(
       "2026-12",
-      "Commissary",
-      "GGC",
-      [{ item: "Rice", unit: "kg", quantity: 20, unit_value: 50, account: "5100" }],
-      [{ item: "Rice", unit: "kg", quantity: 30, unit_value: 50, account: "5100" }, { item: "Oil", unit: "L", quantity: 2, unit_value: 100, account: "5150" }],
-      { food: 1600_00, supplies: 0 },
+      "Store",
+      "The Nest",
+      [{ item: "Coffee Beans", unit: "kg", quantity: 20, unit_value: 50, account: "5210" }],
+      [{ item: "Coffee Beans", unit: "kg", quantity: 30, unit_value: 50, account: "5210" }, { item: "Matcha", unit: "kg", quantity: 2, unit_value: 100, account: "5220" }],
+      { food: 1600_00, supplies: 0, categories: {} },
     )!;
     expect(g.details).toEqual([
-      { label: "Rice", cents: -500_00 },
-      { label: "Oil", cents: -200_00 },
+      { label: "Coffee Beans", cents: -500_00 },
+      { label: "Matcha", cents: -200_00 },
       { label: "Difference between the ledger and the last count", cents: 100_00 },
     ]);
     expect(isBalanced(g.entry)).toBe(true);
     const net = g.entry.lines.filter((l) => l.account_code === "1300").reduce((s, l) => s + l.debitCents - l.creditCents, 0);
     expect(1600_00 + net).toBe(1000_00);
+  });
+});
+
+describe("inventory by category", () => {
+  it("what was bought but isn't on the shelf moves to the category's cost of sales", () => {
+    // Chicken: 5,860 at the start + 20,000 bought = 25,860 in the books; 4,000 counted -> 21,860 used.
+    // Oil: 3,000 in the books, 3,200 counted -> 200 more than the books (a missed purchase).
+    const g = inventoryAdjustment(
+      "2026-11", "Store", "GGC",
+      [
+        { item: "Chicken Wings", unit: "bag", quantity: 2, unit_value: 1500, account: "1321" },
+        { item: "Chicken Drumstick", unit: "pc", quantity: 40, unit_value: 25, account: "1321" },
+        { item: "Oil", unit: "tin", quantity: 2, unit_value: 1600, account: "1327" },
+      ],
+      [{ item: "Chicken Wings", unit: "bag", quantity: 3, unit_value: 1500, account: "5130" }],
+      { food: 0, supplies: 0, categories: { "1321": 25860_00, "1327": 3000_00 } },
+    )!;
+    expect(g.details).toEqual([
+      { label: "Raw – Chicken used", cents: -21860_00 },
+      { label: "Oil: count is more than the books", cents: 200_00 },
+    ]);
+    expect(g.entry.lines.map((l) => [l.account_code, l.debitCents, l.creditCents, l.profit_center])).toEqual([
+      ["5130", 21860_00, 0, "GGC"],
+      ["1321", 0, 21860_00, "GGC"],
+      ["5150", 0, 200_00, "GGC"],
+      ["1327", 200_00, 0, "GGC"],
+    ]);
+    expect(isBalanced(g.entry)).toBe(true);
   });
 });
 
@@ -148,7 +176,7 @@ describe("supplies inventory", () => {
       "2026-11", "Store", "GGC",
       [{ item: "Dishwashing", unit: "gal", quantity: 4, unit_value: 199, account: "6610" }, { item: "Rice", unit: "sack", quantity: 1, unit_value: 1250, account: "5100" }],
       [{ item: "Dishwashing", unit: "gal", quantity: 7, unit_value: 199, account: "6610" }, { item: "Rice", unit: "sack", quantity: 1, unit_value: 1250, account: "5100" }],
-      { food: 1250_00, supplies: 1393_00 },
+      { food: 0, supplies: 1393_00, categories: { "1329": 1250_00 } },
     )!;
     expect(g.entry.lines.map((l) => [l.account_code, l.debitCents, l.creditCents])).toEqual([
       ["1310", 0, 597_00],

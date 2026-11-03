@@ -1,6 +1,7 @@
 // Financial statements from ledger totals: Income Statement (by profit center, by month, or
 // compared), Balance Sheet, and the direct-method Cash Flow Statement. Amounts in centavos.
 
+import { isInventoryCategory } from "./inventory";
 import { CASH_ON_HAND } from "./accounts";
 import { type AccountTotal, trialBalance, type BookView } from "./ledger";
 import { toCents } from "./money";
@@ -223,7 +224,7 @@ export const BS_LINES: BsLine[] = [
   { section: "current-assets", label: "Advances to suppliers", match: codes("1260") },
   { section: "current-assets", label: "Creditable withholding tax", match: codes("1270") },
   { section: "current-assets", label: "Due from Store", match: codes(DUE_FROM_STORE) },
-  { section: "current-assets", label: "Inventory – food & packaging", match: codes("1300") },
+  { section: "current-assets", label: "Inventory – food, beverages & packaging", match: (c, a) => c === "1300" || a?.parentCode === "1320" },
   { section: "current-assets", label: "Prepaid expenses", match: codes("1430") },
   { section: "noncurrent-assets", label: "Property & equipment, at cost", match: (c, a) => a?.parentCode === "1500" && c !== "1590" },
   { section: "noncurrent-assets", label: "Less: accumulated depreciation", match: parent("1590") },
@@ -384,7 +385,7 @@ export function cashCategory(code: string, a: Account | undefined, cash: Set<str
   if (code === DUE_FROM_STORE || code === DUE_TO_COMMISSARY) return "intercompany";
   const p = a?.parentCode ?? "";
   if (code.startsWith("4") || p === "1180" || code === "1270") return "sales";
-  if (code.startsWith("5") || code === "2100" || code === "1260" || code === "1300") return "suppliers";
+  if (code.startsWith("5") || code === "2100" || code === "1260" || code === "1300" || isInventoryCategory(code)) return "suppliers";
   if (code.startsWith("61") || p === "1240" || ["2130", "2135", "2141", "2142", "2143", "2155"].includes(code)) return "payroll";
   if (code.startsWith("62") || code.startsWith("63")) return "occupancy";
   if (code.startsWith("75") || code === "2250") return "interest";

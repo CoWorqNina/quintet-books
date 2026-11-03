@@ -1,3 +1,4 @@
+import { isInventoriedCogs, isInventoryCategory } from "./inventory";
 import type { Account, Book, ProfitCenter } from "./types";
 
 // Fixed accounts the Section 7 templates post to, per profit center. The Nest keeps its own
@@ -62,14 +63,20 @@ export const ACCOUNTS = {
 
 export const DISCOUNT_ACCOUNTS = [ACCOUNTS.discountScPwd, ACCOUNTS.discountPromo] as const;
 
-/** Accounts an "expense line" may use: active, postable COGS or operating expense accounts. */
+/**
+ * Accounts a purchase line ("expense line") may use: an inventory category (chicken, fries,
+ * sauces…), or a postable COGS or operating expense account. COGS accounts that now have an
+ * inventory category are reached only through the month-end count, never bought into directly.
+ */
 export function isExpenseAccount(a: Account): boolean {
-  return a.active && !a.isHeader && (a.type === "COGS" || a.type === "Operating Expense");
+  if (!a.active || a.isHeader) return false;
+  if (isInventoryCategory(a.code)) return true;
+  return (a.type === "COGS" && !isInventoriedCogs(a.code)) || a.type === "Operating Expense";
 }
 
-/** Purchases of every COGS account except Inventory Adjustment carry quantity, unit and unit price. */
+/** Ingredient purchases (inventory categories and COGS, except Inventory Adjustment) carry quantity, unit and unit price. */
 export function needsQuantity(a: Account): boolean {
-  return a.type === "COGS" && a.code !== ACCOUNTS.inventoryAdjustment;
+  return isInventoryCategory(a.code) || (a.type === "COGS" && a.code !== ACCOUNTS.inventoryAdjustment);
 }
 
 /** Whether an account may be tagged with this profit center, per its Chart of Accounts rule. */

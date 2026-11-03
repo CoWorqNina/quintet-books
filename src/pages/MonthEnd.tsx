@@ -1,3 +1,4 @@
+import { categoryOfCountLine, isInventoriedCogs, isInventoryCategory } from "../../shared/inventory";
 import { useState } from "react";
 import { Link, NavLink, Route, Routes } from "react-router-dom";
 import type { Attachment, EntryDraft } from "../../shared/entries";
@@ -290,9 +291,20 @@ const emptyCountLine = (): CountLine => ({ item: "", unit: "", quantity: "", uni
 
 function CountForm({ period, location, user, onSaved }: { period: string; location: Location; user: AppUser; onSaved: () => void }) {
   const accountList = useAccounts();
-  // Food and packaging (GGC 51xx, The Nest 52xx), plus cleaning and store supplies (6610).
-  const ingredients = accountList.filter((a) => (/^5[12]\d\d$/.test(a.code) && a.code !== "5199") || a.code === "6610").filter((a) => !a.isHeader);
-  const start = location.count?.lines ?? location.previous?.lines.map((l) => ({ ...l, quantity: "" })) ?? [];
+  // Inventory categories (chicken, fries, sauces…), other food counted only (The Nest 52xx, ice),
+  // plus cleaning and store supplies (6610).
+  const ingredients = accountList
+    .filter((a) => isInventoryCategory(a.code) || (/^5[12]\d\d$/.test(a.code) && a.code !== "5199" && !isInventoriedCogs(a.code)) || a.code === "6610")
+    .filter((a) => !a.isHeader && a.active);
+  // A new count starts from last month's items; items counted under a cost of sales account
+  // before categories existed move to their category (beef from Other Ingredients to Raw – Beef).
+  const start =
+    location.count?.lines ??
+    location.previous?.lines.map((l) => {
+      const cat = categoryOfCountLine(l.account)?.code;
+      return { ...l, quantity: "", account: cat === "1326" && /beef/i.test(l.item) ? "1325" : (cat ?? l.account) };
+    }) ??
+    [];
   const [lines, setLines] = useState<CountLine[]>(start.length ? start : [emptyCountLine()]);
   const [notes, setNotes] = useState(location.count?.notes ?? "");
   const [busy, setBusy] = useState(false);

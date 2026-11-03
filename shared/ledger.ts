@@ -6,7 +6,8 @@ import { toCents } from "./money";
 
 export const RETAINED_EARNINGS = "3300";
 /** The eight COGS ingredients compared across suppliers (Rice to LPG). */
-export const INGREDIENT_ACCOUNTS = ["5100", "5110", "5120", "5130", "5140", "5150", "5160", "5170"];
+/** Purchases compared across suppliers (price per unit): the inventory categories, where ingredients are now bought into. */
+export const INGREDIENT_ACCOUNTS = ["1321", "1322", "1323", "1324", "1325", "1326", "1327", "1328", "1329", "1330"];
 export const CLEARING_ACCOUNTS = ["1181", "1182", "1183", "1184", "1185", "1186"];
 /** Days a clearing balance may stay unpaid: card 10, Grab and Foodpanda 14. */
 export const CLEARING_LIMIT_DAYS: Record<string, number> = { "1181": 10, "1184": 10, "1182": 14, "1183": 14, "1185": 14, "1186": 14 };

@@ -4,7 +4,8 @@ import { CASH_ON_HAND } from "../../shared/accounts";
 import { toDbEntry } from "../../shared/entries";
 import { monthEnd } from "../../shared/ledger";
 import { toCents } from "../../shared/money";
-import { type CountLine, countValue, type GeneratedKind, INVENTORY, inventoryAdjustment, SUPPLIES_INVENTORY } from "../../shared/monthEnd";
+import { INVENTORY_CATEGORIES, isInventoryCategory } from "../../shared/inventory";
+import { type CountLine, countValue, type GeneratedKind, INVENTORY, inventoryAdjustment, type InventoryLedger, SUPPLIES_INVENTORY } from "../../shared/monthEnd";
 import type { AppUser, Book, ProfitCenter } from "../../shared/types";
 import { isOwner, seesEverything, todayManila } from "../access";
 import { getAccounts } from "../airtable";
@@ -129,9 +130,13 @@ monthEndRoutes.get("/:period/inventory", async (c) => {
 });
 
 /** Inventory balance for a location; untagged lines (the opening balance) belong to GGC. */
-function inventoryLedger(totals: Awaited<ReturnType<typeof totalsAt>>, book: Book, pc: ProfitCenter): { food: number; supplies: number } {
+function inventoryLedger(totals: Awaited<ReturnType<typeof totalsAt>>, book: Book, pc: ProfitCenter): InventoryLedger {
   const at = (code: string) => balanceOf(totals, code, book, (p) => (p ?? "GGC") === pc);
-  return { food: at(INVENTORY), supplies: at(SUPPLIES_INVENTORY) };
+  return {
+    food: at(INVENTORY),
+    supplies: at(SUPPLIES_INVENTORY),
+    categories: Object.fromEntries(INVENTORY_CATEGORIES.map((c) => [c.code, at(c.code)])),
+  };
 }
 
 async function liveEntries(db: ReturnType<typeof serviceClient>, ids: number[]): Promise<Set<number>> {
@@ -157,7 +162,9 @@ monthEndRoutes.put("/:period/inventory", async (c) => {
     .filter((l) => l.item);
   for (const l of lines) {
     if (!(l.quantity >= 0) || !(l.unit_value >= 0)) badRequest(`${l.item}: enter the quantity and unit value.`);
-    if (!/^5[12]\d\d$/.test(l.account) && l.account !== "6610") badRequest(`${l.item}: choose its ingredient account, or Store & Kitchen Supplies for cleaning supplies.`);
+    if (!isInventoryCategory(l.account) && !/^5[12]\d\d$/.test(l.account) && l.account !== "6610") {
+      badRequest(`${l.item}: choose its inventory category, or Store & Kitchen Supplies for cleaning supplies.`);
+    }
   }
   if (new Set(lines.map((l) => l.item.toLowerCase())).size !== lines.length) badRequest("Each item appears once.");
   const db = serviceClient(c.env);

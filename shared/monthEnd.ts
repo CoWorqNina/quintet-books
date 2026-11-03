@@ -7,6 +7,7 @@ import { addMonths } from "./loans";
 import { credit, debit, type EntryDraft, type LineDraft } from "./entries";
 import { monthEnd } from "./ledger";
 import { toCents } from "./money";
+import { categoryOfCountLine, INVENTORY_CATEGORIES } from "./inventory";
 import type { Book, ProfitCenter } from "./types";
 
 export const DEPRECIATION_EXPENSE = "6810";
@@ -260,14 +261,34 @@ export const SUPPLIES_INVENTORY = "1310";
 export const SUPPLIES_EXPENSE = "6610";
 
 /** Cleaning and store supplies are counted too, but kept apart from food and packaging. */
-export const isSupplyLine = (l: Pick<CountLine, "account">) => !/^5[12]\d\d$/.test(l.account);
+export const isSupplyLine = (l: Pick<CountLine, "account">) => !categoryOfCountLine(l.account) && !/^5[12]\d\d$/.test(l.account);
+
+/** Which part of the count a line belongs to: an inventory category, other food (counted only), or supplies. */
+export function countGroup(l: Pick<CountLine, "account">): "category" | "food" | "supplies" {
+  if (categoryOfCountLine(l.account)) return "category";
+  return isSupplyLine(l) ? "supplies" : "food";
+}
+
+export interface InventoryLedger {
+  /** 1300: other food counted only at month-end (e.g. The Nest's café items). */
+  food: number;
+  /** 1310: cleaning and store supplies. */
+  supplies: number;
+  /** Each inventory category account's balance. */
+  categories: Record<string, number>;
+}
 
 /**
- * Inventory adjustment for one book and profit center: per item, this count's value against
- * the last count. Food and packaging move between 1300 Inventory and 5199 Inventory Adjustment;
- * cleaning and store supplies between 1310 Supplies Inventory and 6610 Store & Kitchen Supplies.
- * Any gap between the last count and the ledger (e.g. the opening balance before the first
- * count) is shown on its own line so the ledger ends at the count.
+ * Inventory adjustment for one book and profit center.
+ *
+ * Inventory categories (chicken, fries, sauces…): purchases went into the category's inventory
+ * account, so what was used is the books' balance less the count's value for that category; it
+ * moves to the category's cost of sales. A count above the books moves back the other way (and
+ * usually means a purchase was missed or put in the wrong category).
+ *
+ * Other food (counted only) and cleaning supplies: per item, this count against the last count,
+ * between 1300 Inventory and 5199 Inventory Adjustment, or 1310 Supplies and 6610. Any gap
+ * between the last count and the ledger is shown on its own line so the ledger ends at the count.
  */
 export function inventoryAdjustment(
   period: string,
@@ -275,15 +296,32 @@ export function inventoryAdjustment(
   pc: ProfitCenter,
   count: CountLine[],
   previous: CountLine[],
-  ledger: { food: number; supplies: number },
+  ledger: InventoryLedger,
 ): Generated | null {
   const details: Generated["details"] = [];
   const lines: LineDraft[] = [];
+
+  for (const cat of INVENTORY_CATEGORIES) {
+    const counted = count.filter((l) => categoryOfCountLine(l.account)?.code === cat.code).reduce((s, l) => s + countValue(l), 0);
+    const used = (ledger.categories[cat.code] ?? 0) - counted;
+    if (!used) continue;
+    details.push({ label: used > 0 ? `${cat.name} used` : `${cat.name}: count is more than the books`, cents: -used });
+    lines.push(
+      used > 0
+        ? debit(cat.cogs, used, "gen.cogs", { profit_center: pc, memo: `${cat.name} used` })
+        : credit(cat.cogs, -used, "gen.cogs", { profit_center: pc, memo: `${cat.name}: count above the books` }),
+      used > 0
+        ? credit(cat.code, used, "gen.inventory", { party_name: cat.name, profit_center: pc })
+        : debit(cat.code, -used, "gen.inventory", { party_name: cat.name, profit_center: pc }),
+    );
+  }
+
   for (const supplies of [false, true]) {
+    const group = supplies ? "supplies" : "food";
     const asset = supplies ? SUPPLIES_INVENTORY : INVENTORY;
     const other = supplies ? SUPPLIES_EXPENSE : INVENTORY_ADJUSTMENT;
-    const now = count.filter((l) => isSupplyLine(l) === supplies);
-    const before = previous.filter((l) => isSupplyLine(l) === supplies);
+    const now = count.filter((l) => countGroup(l) === group);
+    const before = previous.filter((l) => countGroup(l) === group);
     const prev = new Map(before.map((l) => [l.item.toLowerCase(), l]));
     const move = (label: string, cents: number) => {
       if (!cents) return;
