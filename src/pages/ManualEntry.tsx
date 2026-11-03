@@ -1,10 +1,10 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { GO_LIVE_DATE } from "../../shared/config";
 import type { Attachment } from "../../shared/entries";
 import { ACCRUED_INTEREST, buildManualEntry, loanParties, type ManualInput, type ManualLine, OPENING_DATE } from "../../shared/manual";
 import type { LoanInfo } from "../../shared/templates";
-import type { AppUser, Book } from "../../shared/types";
+import type { AppUser, Book, Period } from "../../shared/types";
 import { EntryPreview } from "../components/EntryPreview";
 import { AttachmentPicker } from "../components/inputs";
 import { api } from "../lib/api";
@@ -37,6 +37,9 @@ export default function ManualEntry({ user, opening = false }: { user: AppUser; 
   const built = accountList.length ? buildManualEntry(input, accounts, new Map(parties.map((p) => [p.id, p]))) : null;
   const touched = lines.some((l) => l.account);
 
+  const periods = useLoad<Period[]>(opening ? "/periods" : null).data;
+  const goLiveClosed = opening && periods?.some((p) => p.key === OPENING_DATE.slice(0, 7) && p.status !== "Open");
+
   const set = (i: number, patch: Partial<ManualLine>) => setLines(lines.map((l, j) => (j === i ? { ...l, ...patch } : l)));
   const totals = lines.reduce((t, l) => ({ dr: t.dr + (Number(l.debit) || 0), cr: t.cr + (Number(l.credit) || 0) }), { dr: 0, cr: 0 });
 
@@ -50,6 +53,26 @@ export default function ManualEntry({ user, opening = false }: { user: AppUser; 
       setServerError(e instanceof Error ? e.message : "Could not save");
     }
     setBusy(false);
+  }
+
+  if (goLiveClosed) {
+    return (
+      <section className="form-page">
+        <h1>Opening balances (#43)</h1>
+        <div className="card">
+          <p>
+            <span className="badge ok">Done</span> The opening balances as of October 31, 2026 are posted and October is closed, so the books start on
+            November 1, 2026.
+          </p>
+          <p className="muted">
+            To fix an opening figure now, record a Special entry dated in an open month with the reason, rather than changing October.
+          </p>
+          <p>
+            <Link to="/journal?period=2026-10">See the Opening entry in the Journal</Link> · <Link to="/entries/manual">Special entry</Link>
+          </p>
+        </div>
+      </section>
+    );
   }
 
   return (

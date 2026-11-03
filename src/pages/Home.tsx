@@ -69,7 +69,7 @@ export default function Home({ user }: { user: AppUser }) {
           </ul>
         )}
       </div>
-      {owner && (
+      {owner && !periods?.some((p) => p.key === "2026-10" && p.status !== "Open") && (
         <div className="card">
           <h2>Go-live setup</h2>
           <p className="muted">
