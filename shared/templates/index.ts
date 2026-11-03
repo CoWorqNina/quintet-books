@@ -2,6 +2,7 @@ import type { Role } from "../types";
 import { bankCharges, cardPayout, cashDeposit, platformPayout, popUpSales, transfer, unclassifiedCash } from "./cash";
 import { assetPurchase, prepaidPayment, refundableDeposit } from "./assets";
 import type { Template } from "./common";
+import { combinedPayment } from "./combined";
 import { commissarySettlement, storePaysCommissaryCost, transferBilling } from "./commissary";
 import { employeeAdvance, receivableCollected, shortageWriteOff } from "./employees";
 import { loanInstallment, loanProceeds, ownerAdvanceReturned, ownerLoanRepayment, ownerMoneyIn, ownerMoneyOut } from "./loans";
@@ -34,6 +35,7 @@ export const TEMPLATES: Template[] = [
   advanceApplied,
   personalFundPurchase,
   reimbursementPaid,
+  combinedPayment,
   employeeAdvance,
   receivableCollected,
   shortageWriteOff,
@@ -105,6 +107,7 @@ export const TEMPLATE_NAMES: Record<number, string> = {
   39: "Unclassified Cash Movement",
   40: "Bank Charges",
   43: "Opening Balances",
+  44: "Combined Payment",
 };
 
 export const DAILY_REPORT_ROLES: Role[] = ["Owner", "Accountant", "Supervisor", "Staff"];

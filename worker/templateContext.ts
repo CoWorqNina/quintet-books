@@ -6,7 +6,7 @@ import { getAccounts, getParties, getProducts } from "./airtable";
 import { accountBalanceCents } from "./balances";
 import { badRequest, forbidden } from "./db";
 import type { Env } from "./env";
-import { getLoans } from "./registers";
+import { getDueInstallments, getLoans } from "./registers";
 import { loadOpenBills } from "./openBills";
 import { serviceClient } from "./supabase";
 
@@ -32,13 +32,15 @@ export async function templateContext(
   }
   const uses = (type: string) => template.fields.some((f) => f.type === type || f.columns?.some((c) => c.type === type));
   const db = serviceClient(env);
-  const [accounts, parties, products, loans, dueTo, bills] = await Promise.all([
+  const combined = template.fields.some((f) => f.itemsAll);
+  const [accounts, parties, products, loans, dueTo, bills, installments] = await Promise.all([
     getAccounts(env),
     getParties(env),
     uses("product") ? getProducts(env) : Promise.resolve([]),
     uses("loan") ? getLoans(db) : Promise.resolve([]),
     template.number === 21 ? accountBalanceCents(db, "Store", DUE_TO_COMMISSARY) : Promise.resolve(undefined),
     uses("openItems") ? loadOpenBills(env, todayManila()) : Promise.resolve([]),
+    combined ? getDueInstallments(db) : Promise.resolve([]),
   ]);
   return {
     book: template.twoBook ? "Store" : book,
@@ -49,5 +51,6 @@ export async function templateContext(
     loans: new Map(loans.map((l) => [String(l.id), l])),
     dueToCommissaryCents: dueTo === undefined ? undefined : -dueTo,
     openBills: bills,
+    dueInstallments: installments,
   };
 }

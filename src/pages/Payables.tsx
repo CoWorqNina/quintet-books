@@ -12,6 +12,7 @@ export function Payables() {
   const { data, error } = useLoad<PayablesSummary>("/payables");
   const [kinds, setKinds] = useState<Set<PayableKind>>(new Set(PAYABLE_KINDS.map((k) => k.kind)));
   const [open, setOpen] = useState<Set<string>>(new Set(["overdue", "week"]));
+  const [selected, setSelected] = useState<Set<string>>(new Set());
   const items = useMemo(() => (data?.items ?? []).filter((i) => kinds.has(i.kind)), [data, kinds]);
   if (error) return <p className="error">{error}</p>;
   if (!data) return <p className="muted">Loading…</p>;
@@ -26,6 +27,10 @@ export function Payables() {
   const after30 = data.cashCents - overdue - week - month;
   const plan = weeklyPlan(items, data.cashCents, today);
   const toggleKind = (k: PayableKind) => setKinds((s) => (s.has(k) ? new Set([...s].filter((x) => x !== k)) : new Set([...s, k])));
+  const payable = (i: PayableItem) => (i.key.startsWith("bill:") || i.key.startsWith("inst:")) && toPay(i) > 0;
+  const chosen = (data.items ?? []).filter((i) => selected.has(i.key) && payable(i));
+  const chosenBooks = new Set(chosen.map((i) => i.book));
+  const toggleSelect = (k: string) => setSelected((s) => (s.has(k) ? new Set([...s].filter((x) => x !== k)) : new Set([...s, k])));
   const toggleOpen = (k: string) => setOpen((s) => (s.has(k) ? new Set([...s].filter((x) => x !== k)) : new Set([...s, k])));
 
   return (
@@ -106,10 +111,30 @@ export function Payables() {
 
       <div className="card">
         <h2>Bills by due date</h2>
+        <p className="muted small">Tick several to pay them in one transfer (e.g. everything on Kai's cards, SPayLater and card loans, paid to Kai).</p>
+        {chosen.length > 0 && (
+          <div className="notice row-actions" style={{ position: "sticky", top: 0, zIndex: 2 }}>
+            <strong>
+              {chosen.length} selected · {peso(chosen.reduce((s, i) => s + toPay(i), 0))}
+            </strong>
+            <span className="spacer" />
+            {chosenBooks.size > 1 ? (
+              <span className="error small">Store and Commissary bills are paid separately</span>
+            ) : (
+              <Link className="button" to={combinedLink(chosen)}>
+                Pay selected in one transfer
+              </Link>
+            )}
+            <button type="button" className="link" onClick={() => setSelected(new Set())}>
+              Clear
+            </button>
+          </div>
+        )}
         <div className="table-wrap">
           <table className="payables">
             <thead>
               <tr>
+                <th />
                 <th style={{ textAlign: "left" }}>Due</th>
                 <th style={{ textAlign: "left" }}>Pay to</th>
                 <th style={{ textAlign: "left" }}>For</th>
@@ -124,7 +149,7 @@ export function Payables() {
                 return (
                   <Fragment key={b.key}>
                     <tr className="group-row" onClick={() => toggleOpen(b.key)} style={{ cursor: "pointer" }}>
-                      <td colSpan={3}>
+                      <td colSpan={4}>
                         <strong className={b.key === "overdue" && list.length ? "error" : ""}>
                           {isOpen ? "▾" : "▸"} {b.label}
                         </strong>{" "}
@@ -140,6 +165,7 @@ export function Payables() {
                     {isOpen &&
                       list.map((i) => (
                         <tr key={i.key}>
+                          <td>{payable(i) && <input type="checkbox" aria-label="Select" checked={selected.has(i.key)} onChange={() => toggleSelect(i.key)} />}</td>
                           <td className={b.key === "overdue" ? "error" : ""}>
                             {i.dueDate ? short(i.dueDate) : "—"}
                             {b.key === "overdue" && i.dueDate && <div className="small">{daysLate(i.dueDate, today)} days late</div>}
@@ -186,5 +212,13 @@ function payLink(i: PayableItem) {
   const p = new URLSearchParams({ template: String(i.pay!.template), ...i.pay!.values });
   if (p.has("bill")) p.set("amount", (toPay(i) / 100).toFixed(2));
   if (i.book === "Commissary") p.set("book", "Commissary");
+  return `/entries/new?${p}`;
+}
+
+/** Opens #44 Combined Payment with the selected bills and loan installments ticked. */
+function combinedLink(items: PayableItem[]) {
+  const list = items.map((i) => `${i.key}:${(toPay(i) / 100).toFixed(2)}`).join(",");
+  const p = new URLSearchParams({ template: "44", items: list });
+  if (items[0]?.book === "Commissary") p.set("book", "Commissary");
   return `/entries/new?${p}`;
 }

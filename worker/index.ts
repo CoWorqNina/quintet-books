@@ -5,7 +5,7 @@ import { isOwner, todayManila } from "./access";
 import { AirtableError, getAccounts, getProducts } from "./airtable";
 import { accountBalanceCents } from "./balances";
 import { DUE_TO_COMMISSARY } from "../shared/templates/commissary";
-import { getLoans } from "./registers";
+import { getDueInstallments, getLoans } from "./registers";
 import { loadOpenBills } from "./openBills";
 import { requireUser } from "./auth";
 import { exportLedger, gzipJson, nightlyBackup } from "./backup";
@@ -53,6 +53,13 @@ app.get("/open-bills", async (c) => {
   const user = c.get("user");
   if (!["Owner", "Accountant"].includes(user.role)) forbidden();
   return c.json(await loadOpenBills(c.env, todayManila()));
+});
+
+// Unpaid loan installments, for a combined payment (#44).
+app.get("/due-installments", async (c) => {
+  const user = c.get("user");
+  if (!["Owner", "Accountant"].includes(user.role)) forbidden();
+  return c.json(await getDueInstallments(serviceClient(c.env)));
 });
 
 // What the Store owes the Commissary (approved entries), for the monthly settlement.

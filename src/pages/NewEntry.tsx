@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { GO_LIVE_DATE } from "../../shared/config";
-import { type LoanInfo, type Product, type TemplateContext, templatesFor, type Values } from "../../shared/templates";
+import { type DueInstallment, type LoanInfo, type Product, type Row, type TemplateContext, templatesFor, type Values } from "../../shared/templates";
 import type { OpenBill } from "../../shared/ledger";
 import type { AppUser, Book, JournalEntry } from "../../shared/types";
 import { EntryPreview } from "../components/EntryPreview";
@@ -55,6 +55,8 @@ export default function NewEntry({ user, correcting }: { user: AppUser; correcti
   const loans = useLoad<LoanInfo[]>(needsLoans ? "/loans" : null).data;
   const needsBills = template?.fields.some((f) => f.type === "openItems");
   const openBills = useLoad<OpenBill[]>(needsBills ? "/open-bills" : null).data;
+  const needsInstallments = template?.fields.some((f) => f.itemsAll);
+  const dueInstallments = useLoad<DueInstallment[]>(needsInstallments ? "/due-installments" : null).data;
   const dueToCommissary = useLoad<{ cents: number }>(number === 21 ? "/balances/due-to-commissary" : null).data;
 
   const ctx: TemplateContext = useMemo(
@@ -67,8 +69,9 @@ export default function NewEntry({ user, correcting }: { user: AppUser; correcti
       loans: new Map((loans ?? []).map((l) => [String(l.id), l])),
       dueToCommissaryCents: dueToCommissary?.cents,
       openBills: openBills ?? [],
+      dueInstallments: dueInstallments ?? [],
     }),
-    [template, book, profitCenter, accountList, parties, products, loans, dueToCommissary, openBills],
+    [template, book, profitCenter, accountList, parties, products, loans, dueToCommissary, openBills, dueInstallments],
   );
 
   if (!template) return <p>Your role has no entry forms here.</p>;
@@ -191,8 +194,18 @@ export default function NewEntry({ user, correcting }: { user: AppUser; correcti
  */
 function prefill(params: URLSearchParams): Values {
   const v: Values = {};
-  for (const [k, val] of params) if (!["template", "bill", "amount", "book"].includes(k)) v[k] = val;
+  for (const [k, val] of params) if (!["template", "bill", "amount", "book", "items"].includes(k)) v[k] = val;
   const bill = params.get("bill");
   if (bill) v.bills = [{ lineId: Number(bill), amount: params.get("amount") ?? "" }];
+  // Several at once (Payables → Pay selected): items=bill:123:8550.00,inst:45:3377.29
+  const items = params.get("items");
+  if (items) {
+    v.bills = items.split(",").flatMap((x): Row[] => {
+      const [kind, id, amount] = x.split(":");
+      if (kind === "bill") return [{ lineId: Number(id), amount: amount ?? "" }];
+      if (kind === "inst") return [{ installmentId: Number(id), amount: amount ?? "" }];
+      return [];
+    });
+  }
   return v;
 }

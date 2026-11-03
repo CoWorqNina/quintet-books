@@ -175,6 +175,28 @@ describe("purchase templates", () => {
     expect(build(18, { date: "2026-11-04", person: "2191", bills: [{ lineId: 11, amount: 1 }], paidFrom: "1140" }, billsCtx).errors).toContain("A ticked bill is no longer open; reload the list.");
   });
 
+  it("#44 combined payment: card charges and card-loan installments in one transfer", () => {
+    const inst = (id: number, seq: number, interestRecorded = false) => ({
+      id, loanId: 7, loanName: "BDO loan (Chiller, Kai card)", lender: "BDO", accountCode: "2220", interestAccount: "7520", book: "Store" as const,
+      seq, count: 12, dueDate: `2026-1${seq - 6}-16`, principal: 1800, interest: 74.58, interestRecorded,
+    });
+    const c44 = testCtx({ openBills: [bill(21, "2191", 3000_00), bill(22, "2191", 700_00)], dueInstallments: [inst(71, 7, true), inst(72, 8)] });
+    const r = build(44, { date: "2026-11-16", payTo: "Kai", paidFrom: "1140", bills: [{ lineId: 21, amount: 3000 }, { installmentId: 71, amount: 1874.58 }, { installmentId: 72, amount: 1874.58 }] }, c44);
+    expect(r.errors).toEqual([]);
+    expect(lines(r)).toEqual([
+      ["2191", 3000_00, 0],
+      ["2220", 1800_00, 0],
+      ["2250", 74_58, 0],
+      ["2220", 1800_00, 0],
+      ["7520", 74_58, 0],
+      ["1140", 0, 6749_16],
+    ]);
+    expect(r.entries[0].lines[0].settles_line_id).toBe(21);
+    expect(r.register).toEqual({ type: "loan_payments", data: { installment_ids: [71, 72] } });
+    // installments are paid in order
+    expect(build(44, { date: "2026-11-16", payTo: "Kai", paidFrom: "1140", bills: [{ installmentId: 72, amount: 1874.58 }] }, c44).errors.join()).toMatch(/pay installment 7 before 8/);
+  });
+
   it("#15-#17 advance, delivery, personal funds", () => {
     expect(lines(build(15, { date: "2026-11-03", supplier: "recSup", amount: 1000, paidFrom: "1150", reference: "GC1" }))).toEqual([
       ["1260", 1000_00, 0],

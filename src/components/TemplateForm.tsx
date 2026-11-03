@@ -3,7 +3,7 @@ import { todayManila } from "../lib/data";
 import type { Attachment } from "../../shared/entries";
 import { formatPeso, sumCents, toCents } from "../../shared/money";
 import { billLabel, type OpenBill } from "../../shared/ledger";
-import { billsFor, type Field, type Row, type TemplateContext, type Values, visibleFields } from "../../shared/templates";
+import { billsFor, type DueInstallment, type Field, installmentsFor, type Row, type TemplateContext, type Values, visibleFields } from "../../shared/templates";
 import type { Account, Party } from "../../shared/types";
 import { AttachmentPicker, MoneyInput } from "./inputs";
 
@@ -39,6 +39,9 @@ export function TemplateForm({
         ) : f.type === "openItems" ? (
           <div key={f.name} className="span2">
             <BillsField field={f} bills={billsFor(f, values, ctx)} rows={(values[f.name] as Row[]) ?? []} onChange={(rows) => set(f.name, rows)} />
+            {f.itemsAll && (
+              <InstallmentsField installments={installmentsFor(ctx)} rows={(values[f.name] as Row[]) ?? []} onChange={(rows) => set(f.name, rows)} />
+            )}
           </div>
         ) : f.type === "checkbox" ? (
           <label key={f.name} className="inline span2">
@@ -59,7 +62,11 @@ export function TemplateForm({
 }
 
 /** Unpaid bills with a tick box each; the amount defaults to what's unpaid and can be lowered. */
-function BillsField({ field, bills, rows, onChange }: { field: Field; bills: OpenBill[]; rows: Row[]; onChange: (rows: Row[]) => void }) {
+function BillsField({ field, bills, rows: all, onChange: setAll }: { field: Field; bills: OpenBill[]; rows: Row[]; onChange: (rows: Row[]) => void }) {
+  // Loan installment rows (combined payment) are kept as they are; this table handles bills only.
+  const others = all.filter((r) => r.installmentId);
+  const rows = all.filter((r) => !r.installmentId);
+  const onChange = (next: Row[]) => setAll([...next, ...others]);
   const picked = new Map(rows.map((r) => [Number(r.lineId), r]));
   const toggle = (b: OpenBill, on: boolean) =>
     onChange(on ? [...rows, { lineId: b.lineId, amount: (Math.max(0, b.openCents - b.pendingCents) / 100).toFixed(2) }] : rows.filter((r) => Number(r.lineId) !== b.lineId));
@@ -124,6 +131,55 @@ function BillsField({ field, bills, rows, onChange }: { field: Field; bills: Ope
       <div className="row-actions">
         <span className="spacer" />
         {rows.length > 0 && <strong>Total {formatPeso(total)}</strong>}
+      </div>
+    </div>
+  );
+}
+
+/** Loan installments a combined payment can include: always the full scheduled amount. */
+function InstallmentsField({ installments, rows, onChange }: { installments: DueInstallment[]; rows: Row[]; onChange: (rows: Row[]) => void }) {
+  const picked = new Set(rows.filter((r) => r.installmentId).map((r) => Number(r.installmentId)));
+  const amount = (i: DueInstallment) => (i.principal + i.interest).toFixed(2);
+  const toggle = (i: DueInstallment, on: boolean) =>
+    onChange(on ? [...rows, { installmentId: i.id, amount: amount(i) }] : rows.filter((r) => Number(r.installmentId) !== i.id));
+  const today = todayManila();
+  const grand = sumCents(rows.map((r) => toCents(r.amount as string)));
+  return (
+    <div style={{ marginTop: "0.75rem" }}>
+      <span className="label">Loan installments</span>
+      {installments.length === 0 ? (
+        <p className="muted">No unpaid loan installments.</p>
+      ) : (
+        <div className="table-wrap">
+          <table className="bills">
+            <thead>
+              <tr>
+                <th />
+                <th style={{ textAlign: "left" }}>Due</th>
+                <th style={{ textAlign: "left" }}>Loan</th>
+                <th>Principal + interest</th>
+              </tr>
+            </thead>
+            <tbody>
+              {installments.map((i) => (
+                <tr key={i.id}>
+                  <td>
+                    <input type="checkbox" checked={picked.has(i.id)} onChange={(e) => toggle(i, e.target.checked)} />
+                  </td>
+                  <td className={i.dueDate < today ? "danger" : ""}>{i.dueDate}</td>
+                  <td>
+                    {i.loanName} <span className="muted">· installment {i.seq} of {i.count}</span>
+                  </td>
+                  <td className="num">{formatPeso(toCents(amount(i)))}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <div className="row-actions">
+        <span className="spacer" />
+        {rows.length > 0 && <strong>Total of this payment {formatPeso(grand)}</strong>}
       </div>
     </div>
   );

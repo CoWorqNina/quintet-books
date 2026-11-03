@@ -43,6 +43,8 @@ export interface Field {
   itemsAccount?: string;
   itemsAccountField?: string;
   itemsPartyField?: string;
+  /** openItems: every unpaid bill in the book plus loan installments (combined payment). */
+  itemsAll?: boolean;
 }
 
 export type Scalar = string | number | boolean | null | undefined;
@@ -78,11 +80,31 @@ export interface TemplateContext {
   dueToCommissaryCents?: number;
   /** Unpaid bills on payable accounts, for payments that tick them off. */
   openBills?: OpenBill[];
+  /** Unpaid loan installments, for a combined payment (#44). */
+  dueInstallments?: DueInstallment[];
+}
+
+/** An unpaid loan installment from the Loan Tracker (amounts in pesos). */
+export interface DueInstallment {
+  id: number;
+  loanId: number;
+  loanName: string;
+  lender: string;
+  accountCode: string;
+  interestAccount: string;
+  book: Book;
+  seq: number;
+  count: number;
+  dueDate: string;
+  principal: number;
+  interest: number;
+  /** Interest already booked (month-end accrual or before go-live): paying it clears 2250. */
+  interestRecorded: boolean;
 }
 
 /** A schedule record created together with an entry (asset, prepaid spread, loan). */
 export interface RegisterDraft {
-  type: "asset" | "spread" | "loan" | "loan_payment";
+  type: "asset" | "spread" | "loan" | "loan_payment" | "loan_payments";
   data: Record<string, unknown>;
 }
 
@@ -267,6 +289,7 @@ export const dateField: Field = { name: "date", label: "Date", type: "date", req
 
 /** The bills an openItems field lists: the account's unpaid bills in this book (and supplier). */
 export function billsFor(f: Field, values: Values, ctx: TemplateContext): OpenBill[] {
+  if (f.itemsAll) return (ctx.openBills ?? []).filter((b) => b.book === ctx.book);
   const account = f.itemsAccount ?? str(values[f.itemsAccountField ?? ""]);
   const party = f.itemsPartyField ? str(values[f.itemsPartyField]) : "";
   if (!account || (f.itemsPartyField && !party)) return [];
@@ -304,4 +327,9 @@ export function settleLines(field: Field, values: Values, ctx: TemplateContext, 
     labels.push(billLabel(bill));
   }
   return { lines, totalCents: lines.reduce((s, l) => s + l.debitCents, 0), labels };
+}
+
+/** Loan installments a combined payment can include (this book's, oldest first). */
+export function installmentsFor(ctx: TemplateContext): DueInstallment[] {
+  return (ctx.dueInstallments ?? []).filter((i) => i.book === ctx.book).sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.seq - b.seq);
 }
