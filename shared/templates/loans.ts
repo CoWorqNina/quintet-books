@@ -20,6 +20,8 @@ import {
   str,
   type BuildResult,
   type Template,
+  transferFeeField,
+  transferFeeLines,
 } from "./common";
 
 export const ACCRUED_INTEREST = "2250";
@@ -123,13 +125,15 @@ export const loanInstallment: Template = {
     dateField,
     { name: "loan", label: "Loan", type: "loan", required: true },
     { name: "paidFrom", label: "Paid from", type: "account", filter: "bank", required: true },
+    transferFeeField,
     { name: "reference", label: "Payment reference", type: "text", required: true },
     { name: "proof", label: "Payment proof", type: "attachment" },
   ],
   build(v, ctx): BuildResult {
     const errors: string[] = [];
     requireFields(this.fields, v, ctx, errors);
-    checkAccount(str(v.paidFrom), "bank", "Paid from", ctx, errors);
+    const bank = checkAccount(str(v.paidFrom), "bank", "Paid from", ctx, errors);
+    const fee = transferFeeLines(v, ctx, "34.fee", errors, bank);
     const loan = ctx.loans?.get(str(v.loan));
     if (str(v.loan) && !loan) errors.push("Choose a loan.");
     if (loan && loan.book !== ctx.book) errors.push(`${loan.name} is in the ${loan.book} book.`);
@@ -151,7 +155,8 @@ export const loanInstallment: Template = {
             debit(loan.accountCode, principal, "34.principal"),
             debit(ACCRUED_INTEREST, accrued, "34.accrued", { party_id: `loan:${loan.id}`, party_name: loan.name }),
             debit(loan.interestAccount, interest - accrued, "34.interest", { profit_center: "GGC" }),
-            credit(str(v.paidFrom), total, "34.paid"),
+            ...fee.lines,
+            credit(str(v.paidFrom), total + fee.feeCents, "34.paid"),
           ],
           { source_document: str(v.reference), attachments: attachmentsOf(v.proof) },
         )

@@ -19,6 +19,8 @@ import {
   settleLines,
   str,
   type Template,
+  transferFeeField,
+  transferFeeLines,
 } from "./common";
 import { ACCRUED_INTEREST } from "./loans";
 
@@ -43,13 +45,15 @@ export const combinedPayment: Template = {
     { name: "payTo", label: "Paid to", type: "text", required: true, help: "Who received the transfer, e.g. Kai (for his cards and card loans)" },
     combinedItems,
     { name: "paidFrom", label: "Paid from", type: "account", filter: "bank", required: true },
+    transferFeeField,
     { name: "reference", label: "Transfer reference", type: "text" },
     { name: "proof", label: "Transfer proof", type: "attachment" },
   ],
   build(v, ctx): BuildResult {
     const errors: string[] = [];
     requireFields(this.fields, v, ctx, errors);
-    checkAccount(str(v.paidFrom), "bank", "Paid from", ctx, errors);
+    const bank = checkAccount(str(v.paidFrom), "bank", "Paid from", ctx, errors);
+    const fee = transferFeeLines(v, ctx, "44.fee", errors, bank);
     const rows = rowsOf(v.bills);
     // Bills: one line per bill, naming the bill it settles (part payments allowed).
     const billRows = rows.filter((r) => !r.installmentId);
@@ -87,7 +91,7 @@ export const combinedPayment: Template = {
       v,
       44,
       `Combined payment to ${payTo || "…"}: ${count} item${count === 1 ? "" : "s"} (${formatPeso(total)})`,
-      [...bills.lines, ...lines, credit(str(v.paidFrom), total, "44.paid", { party_name: payTo || null })],
+      [...bills.lines, ...lines, ...fee.lines, credit(str(v.paidFrom), total + fee.feeCents, "44.paid", { party_name: payTo || null })],
       { source_document: str(v.reference) || null, attachments: attachmentsOf(v.proof) },
     );
     return { ...result(errors, entry), register: ids.length ? { type: "loan_payments", data: { installment_ids: ids } } : undefined };

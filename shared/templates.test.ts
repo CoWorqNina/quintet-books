@@ -156,6 +156,23 @@ describe("purchase templates", () => {
     expect(build(14, { date: "2026-11-03", supplier: "recSup", bills: [], paidFrom: "1140" }, billsCtx).errors).toContain("Bills paid is required.");
   });
 
+  it("#14 and #18 can include a transfer fee; not when paid by card", () => {
+    const r = build(14, { date: "2026-11-03", supplier: "recSup", bills: [{ lineId: 11, amount: 4200 }], paidFrom: "1140", transferFee: 25 }, billsCtx);
+    expect(lines(r)).toEqual([
+      ["2100", 4200_00, 0],
+      ["6740", 25_00, 0],
+      ["1140", 0, 4225_00],
+    ]);
+    expect(build(14, { date: "2026-11-03", supplier: "recSup", bills: [{ lineId: 11, amount: 4200 }], paidFrom: "2191", transferFee: 25 }, billsCtx).errors).toContain(
+      "A transfer fee applies only when paying from a bank or e-wallet.",
+    );
+    expect(lines(build(18, { date: "2026-11-04", person: "2191", bills: [{ lineId: 21, amount: 3000 }], paidFrom: "1150", transferFee: 10 }, billsCtx))).toEqual([
+      ["2191", 3000_00, 0],
+      ["6740", 10_00, 0],
+      ["1150", 0, 3010_00],
+    ]);
+  });
+
   it("#14 paid with a card moves the debt to the card", () => {
     const r = build(14, { date: "2026-11-03", supplier: "recSup", bills: [{ lineId: 11, amount: 4200 }], paidFrom: "2191" }, billsCtx);
     expect(r.errors).toEqual([]);
@@ -193,6 +210,15 @@ describe("purchase templates", () => {
     ]);
     expect(r.entries[0].lines[0].settles_line_id).toBe(21);
     expect(r.register).toEqual({ type: "loan_payments", data: { installment_ids: [71, 72] } });
+    // a transfer fee goes to Bank Charges and comes out of the same bank
+    const withFee = build(44, { date: "2026-11-16", payTo: "Kai", paidFrom: "1140", transferFee: 15, bills: [{ lineId: 22, amount: 700 }] }, c44);
+    expect(withFee.errors).toEqual([]);
+    expect(lines(withFee)).toEqual([
+      ["2191", 700_00, 0],
+      ["6740", 15_00, 0],
+      ["1140", 0, 715_00],
+    ]);
+    expect(withFee.entries[0].lines[1].profit_center).toBe("GGC");
     // installments are paid in order
     expect(build(44, { date: "2026-11-16", payTo: "Kai", paidFrom: "1140", bills: [{ installmentId: 72, amount: 1874.58 }] }, c44).errors.join()).toMatch(/pay installment 7 before 8/);
   });

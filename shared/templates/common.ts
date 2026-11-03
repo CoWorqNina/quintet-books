@@ -333,3 +333,28 @@ export function settleLines(field: Field, values: Values, ctx: TemplateContext, 
 export function installmentsFor(ctx: TemplateContext): DueInstallment[] {
   return (ctx.dueInstallments ?? []).filter((i) => i.book === ctx.book).sort((a, b) => a.dueDate.localeCompare(b.dueDate) || a.seq - b.seq);
 }
+
+export const BANK_CHARGES = "6740";
+
+/** Optional bank or e-wallet fee charged on a payment transfer (InstaPay, PESONet…). */
+export const transferFeeField: Field = {
+  name: "transferFee",
+  label: "Transfer fee",
+  type: "money",
+  help: "Leave blank if none. Recorded as Bank Charges and taken from the same account",
+};
+
+/**
+ * The fee line for a payment: Bank Charges, tagged to the entry's profit center (GGC in the
+ * Commissary). The caller adds the fee to the amount credited to the bank.
+ */
+export function transferFeeLines(v: Values, ctx: TemplateContext, templateLine: string, errors: string[], paidFrom?: Account) {
+  const fee = cents(v.transferFee);
+  if (fee < 0) errors.push("The transfer fee can't be negative.");
+  if (fee > 0 && paidFrom && !paidFrom.isCashAccount) errors.push("A transfer fee applies only when paying from a bank or e-wallet.");
+  if (fee <= 0) return { lines: [] as LineDraft[], feeCents: 0 };
+  return {
+    lines: [debit(BANK_CHARGES, fee, templateLine, { profit_center: ctx.book === "Commissary" ? "GGC" : ctx.profitCenter, memo: "Transfer fee" })],
+    feeCents: fee,
+  };
+}

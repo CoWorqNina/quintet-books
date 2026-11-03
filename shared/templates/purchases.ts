@@ -28,6 +28,8 @@ import {
   str,
   type Template,
   type TemplateContext,
+  transferFeeField,
+  transferFeeLines,
 } from "./common";
 
 /** Store encoders plus the Commissary In-charge, who records Commissary purchases. */
@@ -206,6 +208,7 @@ export const supplierPayment: Template = {
       required: true,
       help: "A bank or e-wallet, or an owner's credit card or SPayLater",
     },
+    transferFeeField,
     { name: "reference", label: "Transfer / check reference", type: "text" },
     { name: "proof", label: "Payment proof", type: "attachment" },
   ],
@@ -213,8 +216,9 @@ export const supplierPayment: Template = {
     const errors: string[] = [];
     requireFields(this.fields, v, ctx, errors);
     const supplier = checkParty(str(v.supplier), "Supplier", "Supplier", ctx, errors);
-    checkAccount(str(v.paidFrom), "bankOrCard", "Paid from", ctx, errors);
+    const from = checkAccount(str(v.paidFrom), "bankOrCard", "Paid from", ctx, errors);
     const { lines, totalCents, labels } = settleLines(supplierBills, v, ctx, errors, "14.ap");
+    const fee = transferFeeLines(v, ctx, "14.fee", errors, from);
     return result(
       errors,
       makeEntry(
@@ -222,7 +226,7 @@ export const supplierPayment: Template = {
         v,
         14,
         `Payment to ${supplier?.name ?? "supplier"}`,
-        [...lines, paidLine(ctx, str(v.paidFrom), totalCents, "14.paid", supplier?.name ?? null, labels.join(", "))],
+        [...lines, ...fee.lines, paidLine(ctx, str(v.paidFrom), totalCents + fee.feeCents, "14.paid", supplier?.name ?? null, labels.join(", "))],
         { source_document: [labels.join(", "), str(v.reference)].filter(Boolean).join(" · ") || null, attachments: attachmentsOf(v.proof) },
       ),
     );
@@ -356,6 +360,7 @@ export const reimbursementPaid: Template = {
     { name: "person", label: "Card, SPayLater or person paid", type: "account", filter: "payable", required: true },
     payableBills,
     { name: "paidFrom", label: "Paid from", type: "account", filter: "bank", required: true },
+    transferFeeField,
     { name: "reference", label: "Transfer reference", type: "text" },
     { name: "proof", label: "Transfer proof", type: "attachment" },
   ],
@@ -363,8 +368,9 @@ export const reimbursementPaid: Template = {
     const errors: string[] = [];
     requireFields(this.fields, v, ctx, errors);
     const payable = checkAccount(str(v.person), "payable", "Card, SPayLater or person", ctx, errors);
-    checkAccount(str(v.paidFrom), "bank", "Paid from", ctx, errors);
+    const bank = checkAccount(str(v.paidFrom), "bank", "Paid from", ctx, errors);
     const { lines, totalCents, labels } = settleLines(payableBills, v, ctx, errors, "18.reimbursement");
+    const fee = transferFeeLines(v, ctx, "18.fee", errors, bank);
     return result(
       errors,
       makeEntry(
@@ -372,7 +378,7 @@ export const reimbursementPaid: Template = {
         v,
         18,
         `Paid: ${payable?.name ?? ""}`,
-        [...lines, credit(str(v.paidFrom), totalCents, "18.paid")],
+        [...lines, ...fee.lines, credit(str(v.paidFrom), totalCents + fee.feeCents, "18.paid")],
         { source_document: [str(v.reference), `${labels.length} charge${labels.length === 1 ? "" : "s"}`].filter(Boolean).join(" · "), attachments: attachmentsOf(v.proof) },
       ),
     );
