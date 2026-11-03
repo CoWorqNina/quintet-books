@@ -9,6 +9,7 @@ import {
   disposal,
   interestAccrual,
   inventoryAdjustment,
+  inventoryCountIssues,
   type LoanRecord,
   type LoanRow,
   monthsThrough,
@@ -167,6 +168,27 @@ describe("inventory by category", () => {
       ["1327", 200_00, 0, "GGC"],
     ]);
     expect(isBalanced(g.entry)).toBe(true);
+  });
+});
+
+describe("inventory count required to close", () => {
+  const locs = [{ book: "Store" as const, pc: "GGC" as const }, { book: "Store" as const, pc: "The Nest" as const }];
+  const ledger = (stock: Record<string, number>) => () => ({ food: 0, supplies: 0, categories: stock });
+  const count = (pc: "GGC" | "The Nest", entry_id: number | null, value = 1000) => ({
+    book: "Store" as const, profit_center: pc, period_key: "2026-11", entry_id,
+    lines: [{ item: "Wings", unit: "bag", quantity: 1, unit_value: value, account: "1321" }],
+  });
+  it("a location holding stock must be counted; one with none needn't", () => {
+    expect(inventoryCountIssues("2026-11", locs, [], (_, pc) => ledger(pc === "GGC" ? { "1321": 5000_00 } : {})(), new Map())).toEqual([
+      "Store / GGC: no count entered for 2026-11 (Month-end → Inventory count)",
+    ]);
+  });
+  it("the adjustment must be generated and approved, unless the count already matches the books", () => {
+    const books = ledger({ "1321": 5000_00 });
+    expect(inventoryCountIssues("2026-11", locs.slice(0, 1), [count("GGC", null)], books, new Map())[0]).toMatch(/isn't generated yet/);
+    expect(inventoryCountIssues("2026-11", locs.slice(0, 1), [count("GGC", 9)], books, new Map([[9, "Submitted"]]))).toEqual(["Store / GGC: inventory adjustment entry #9 is Submitted"]);
+    expect(inventoryCountIssues("2026-11", locs.slice(0, 1), [count("GGC", 9)], books, new Map([[9, "Approved"]]))).toEqual([]);
+    expect(inventoryCountIssues("2026-11", locs.slice(0, 1), [count("GGC", null, 5000)], books, new Map())).toEqual([]);
   });
 });
 

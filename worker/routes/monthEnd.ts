@@ -4,15 +4,15 @@ import { CASH_ON_HAND } from "../../shared/accounts";
 import { toDbEntry } from "../../shared/entries";
 import { monthEnd } from "../../shared/ledger";
 import { toCents } from "../../shared/money";
-import { INVENTORY_CATEGORIES, isInventoryCategory } from "../../shared/inventory";
-import { type CountLine, countValue, type GeneratedKind, INVENTORY, inventoryAdjustment, type InventoryLedger, SUPPLIES_INVENTORY } from "../../shared/monthEnd";
+import { isInventoryCategory } from "../../shared/inventory";
+import { type CountLine, countValue, type GeneratedKind, inventoryAdjustment } from "../../shared/monthEnd";
 import type { AppUser, Book, ProfitCenter } from "../../shared/types";
 import { isOwner, seesEverything, todayManila } from "../access";
 import { getAccounts } from "../airtable";
 import { runChecks } from "../checks";
 import { badRequest, dbError, forbidden } from "../db";
 import type { AppContext } from "../env";
-import { balanceOf, existingGenerated, proposals, totalsAt } from "../monthEnd";
+import { balanceOf, existingGenerated, inventoryLedger, LOCATIONS, proposals, totalsAt } from "../monthEnd";
 import { serviceClient } from "../supabase";
 import { cleanAttachments } from "./attachments";
 
@@ -89,11 +89,6 @@ interface CountRow {
   updated_at: string;
 }
 
-const LOCATIONS: { book: Book; pc: ProfitCenter }[] = [
-  { book: "Store", pc: "GGC" },
-  { book: "Store", pc: "The Nest" },
-  { book: "Commissary", pc: "GGC" },
-];
 
 function canCount(user: AppUser, book: Book, pc: ProfitCenter) {
   if (seesEverything(user)) return true;
@@ -128,16 +123,6 @@ monthEndRoutes.get("/:period/inventory", async (c) => {
     }),
   });
 });
-
-/** Inventory balance for a location; untagged lines (the opening balance) belong to GGC. */
-function inventoryLedger(totals: Awaited<ReturnType<typeof totalsAt>>, book: Book, pc: ProfitCenter): InventoryLedger {
-  const at = (code: string) => balanceOf(totals, code, book, (p) => (p ?? "GGC") === pc);
-  return {
-    food: at(INVENTORY),
-    supplies: at(SUPPLIES_INVENTORY),
-    categories: Object.fromEntries(INVENTORY_CATEGORIES.map((c) => [c.code, at(c.code)])),
-  };
-}
 
 async function liveEntries(db: ReturnType<typeof serviceClient>, ids: number[]): Promise<Set<number>> {
   if (!ids.length) return new Set();

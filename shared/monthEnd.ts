@@ -499,3 +499,39 @@ export function disposal(asset: AssetRecord, input: DisposalInput, bookedAccumCe
     errors,
   };
 }
+
+/**
+ * What still stops the month from closing on inventory: per location holding stock, this month's
+ * count must exist and its adjustment be generated and approved (a count that already matches
+ * the books needs no adjustment).
+ */
+export function inventoryCountIssues(
+  period: string,
+  locations: { book: Book; pc: ProfitCenter }[],
+  counts: { book: Book; profit_center: ProfitCenter; period_key: string; lines: CountLine[]; entry_id: number | null }[],
+  ledgerFor: (book: Book, pc: ProfitCenter) => InventoryLedger,
+  entryStatus: Map<number, string>,
+): string[] {
+  const issues: string[] = [];
+  for (const loc of locations) {
+    const name = `${loc.book} / ${loc.pc}`;
+    const ledger = ledgerFor(loc.book, loc.pc);
+    const holdsStock = !!(ledger.food || ledger.supplies || Object.values(ledger.categories).some((v) => v));
+    const mine = counts.filter((c) => c.book === loc.book && c.profit_center === loc.pc);
+    const count = mine.find((c) => c.period_key === period);
+    if (!count) {
+      if (holdsStock) issues.push(`${name}: no count entered for ${period} (Month-end → Inventory count)`);
+      continue;
+    }
+    const status = count.entry_id ? entryStatus.get(count.entry_id) : undefined;
+    if (status && status !== "Rejected" && status !== "Cancelled") {
+      if (status !== "Approved") issues.push(`${name}: inventory adjustment entry #${count.entry_id} is ${status}`);
+      continue;
+    }
+    const previous = mine.find((c) => c.period_key < period);
+    if (inventoryAdjustment(period, loc.book, loc.pc, count.lines, previous?.lines ?? [], ledger)) {
+      issues.push(`${name}: count entered, but its adjustment isn't generated yet (Month-end → Inventory count → Generate)`);
+    }
+  }
+  return issues;
+}

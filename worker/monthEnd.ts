@@ -16,7 +16,11 @@ import {
   type LoanRow,
   type SpreadRecord,
   thirteenthMonth,
+  INVENTORY,
+  type InventoryLedger,
+  SUPPLIES_INVENTORY,
 } from "../shared/monthEnd";
+import { INVENTORY_CATEGORIES } from "../shared/inventory";
 import { GO_LIVE_DATE, OWNER_FOOD_ALLOWANCE_CENTS } from "../shared/config";
 import { toCents } from "../shared/money";
 import type { Book, ProfitCenter } from "../shared/types";
@@ -130,3 +134,21 @@ export function balanceOf(totals: AccountTotal[], code: string, book?: Book, pc?
     .filter((t) => t.account_code === code && (!book || t.book === book) && (!pc || pc(t.profit_center ?? null)))
     .reduce((s, t) => s + toCents(Number(t.prior_debit)) - toCents(Number(t.prior_credit)) + toCents(Number(t.year_debit)) - toCents(Number(t.year_credit)), 0);
 }
+
+/** Where stock is counted at month-end. */
+export const LOCATIONS: { book: Book; pc: ProfitCenter }[] = [
+  { book: "Store", pc: "GGC" },
+  { book: "Store", pc: "The Nest" },
+  { book: "Commissary", pc: "GGC" },
+];
+
+/** Inventory balance for a location; untagged lines (the opening balance) belong to GGC. */
+export function inventoryLedger(totals: Awaited<ReturnType<typeof totalsAt>>, book: Book, pc: ProfitCenter): InventoryLedger {
+  const at = (code: string) => balanceOf(totals, code, book, (p) => (p ?? "GGC") === pc);
+  return {
+    food: at(INVENTORY),
+    supplies: at(SUPPLIES_INVENTORY),
+    categories: Object.fromEntries(INVENTORY_CATEGORIES.map((c) => [c.code, at(c.code)])),
+  };
+}
+

@@ -5,11 +5,12 @@ import { formatPeso, toCents } from "../shared/money";
 import { GENERATED_LABELS } from "../shared/monthEnd";
 import { cashAccounts, cashFlows, type CashLine } from "../shared/statements";
 import { DUE_FROM_STORE, DUE_TO_COMMISSARY } from "../shared/templates/commissary";
-import type { Account, Book } from "../shared/types";
+import type { Account, Book, ProfitCenter } from "../shared/types";
 import { dbError } from "./db";
 import type { Env } from "./env";
 import { yearEndStatus } from "./routes/yearEnd";
-import { balanceOf, existingGenerated, loadRegisters, proposals, totalsAt } from "./monthEnd";
+import { balanceOf, existingGenerated, inventoryLedger, loadRegisters, LOCATIONS, proposals, totalsAt } from "./monthEnd";
+import { type CountLine, inventoryCountIssues } from "../shared/monthEnd";
 
 export interface Check {
   key: string;
@@ -33,7 +34,7 @@ export async function runChecks(db: SupabaseClient, period: string, accounts: Ma
     db.from("entries").select("id, kind, status, entry_date, unsupported, description, entry_lines(account_code, profit_center, party_id, party_name, debit, credit)").eq("period_key", period).limit(5000),
     db.rpc("daily_report_days", { p_period: period }),
     db.from("reconciliations").select("account_code, book, statement_balance, items").eq("period_key", period),
-    db.from("inventory_counts").select("id, book, profit_center, entry_id").eq("period_key", period),
+    db.from("inventory_counts").select("id, book, profit_center, period_key, lines, entry_id").lte("period_key", period).order("period_key", { ascending: false }),
     db.rpc("party_lines", { p_accounts: ["2100", "1241", "1242", "1243", "1244", "2260", "1250", "1255", "2250", ...CLEARING_ACCOUNTS], p_to: asOf }),
     db.from("periods").select("key, status").lt("key", period).eq("status", "Open"),
   ]);
@@ -110,10 +111,21 @@ export async function runChecks(db: SupabaseClient, period: string, accounts: Ma
     if (!waiting) adj.push(`${GENERATED_LABELS[p.kind]} (${p.book}) not generated yet`);
   }
   for (const g of generated) if (g.generated !== "closing" && g.status !== "Approved") adj.push(`${GENERATED_LABELS[g.generated as Exclude<typeof g.generated, "closing">]} (${g.book}) entry #${g.id} is ${g.status}`);
-  for (const c of (countsRes.data ?? []) as { book: Book; profit_center: string; entry_id: number | null }[]) {
-    if (!c.entry_id) adj.push(`Inventory count ${c.book} / ${c.profit_center}: adjustment not generated`);
-  }
   add("adjustments", "Adjusting entries posted and approved", adj);
+
+  // Month-end inventory count: every location holding stock is counted, and its adjustment
+  // (what was used, per category) is generated and approved before the month closes.
+  type Count = { book: Book; profit_center: ProfitCenter; period_key: string; lines: CountLine[]; entry_id: number | null };
+  const counts = (countsRes.data ?? []) as Count[];
+  const countEntries = counts.filter((c) => c.period_key === period && c.entry_id).map((c) => c.entry_id!);
+  const entryStatus = new Map<number, string>();
+  if (countEntries.length) {
+    const { data, error } = await db.from("entries").select("id, status").in("id", countEntries);
+    dbError(error);
+    for (const e of data ?? []) entryStatus.set(e.id as number, e.status as string);
+  }
+  const inv = inventoryCountIssues(period, LOCATIONS, counts, (b, pc) => inventoryLedger(totals, b, pc), entryStatus);
+  add("inventory", "Month-end inventory counted and adjusted", inv);
 
   // Section 10 checks.
   const tb: string[] = [];
