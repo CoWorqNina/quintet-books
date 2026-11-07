@@ -5,7 +5,7 @@ import { useLoad } from "../lib/data";
 
 const TYPES: Party["type"][] = ["Supplier", "Employee", "Owner", "Lender", "Platform", "Other"];
 const ADDERS: Record<Party["type"], string[]> = {
-  Supplier: ["Owner", "Accountant", "Supervisor", "Commissary In-charge"],
+  Supplier: ["Owner", "Accountant", "Supervisor", "Commissary In-charge", "Partner"],
   Employee: ["Owner", "Accountant"],
   Owner: ["Owner"],
   Lender: ["Owner", "Accountant"],

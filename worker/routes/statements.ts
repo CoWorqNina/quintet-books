@@ -17,7 +17,7 @@ import {
   type StatementTotal,
 } from "../../shared/statements";
 import type { Account, Book } from "../../shared/types";
-import { seesEverything, todayManila } from "../access";
+import { viewsBooks, todayManila } from "../access";
 import { getAccounts } from "../airtable";
 import { badRequest, dbError, forbidden } from "../db";
 import type { AppContext } from "../env";
@@ -29,7 +29,7 @@ import { serviceClient } from "../supabase";
 export const statements = new Hono<AppContext>();
 
 statements.use("/*", async (c, next) => {
-  if (!seesEverything(c.get("user"))) forbidden("Only an Owner or the Accountant sees the statements.");
+  if (!viewsBooks(c.get("user"))) forbidden("Only Owners, Partners or the Accountant see the statements.");
   await next();
 });
 

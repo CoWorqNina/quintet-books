@@ -53,7 +53,10 @@ export default function Journal({ user }: { user: AppUser }) {
 
   // The server checks who may cancel; Staff only ever see their own entries.
   const canCancel = (e: JournalEntry) =>
-    !e.dailyReportId && ["Draft", "Submitted", "Rejected"].includes(e.status) && user.role !== "Commissary In-charge";
+    !e.dailyReportId &&
+    ["Draft", "Submitted", "Rejected"].includes(e.status) &&
+    user.role !== "Commissary In-charge" &&
+    (user.role !== "Partner" || e.createdBy === user.id);
 
   return (
     <section>

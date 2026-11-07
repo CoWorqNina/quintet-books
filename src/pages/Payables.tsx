@@ -8,7 +8,7 @@ const peso = (c: number) => formatPeso(c);
 const short = (d: string) => new Date(`${d}T00:00:00Z`).toLocaleDateString("en-PH", { month: "short", day: "numeric", timeZone: "UTC" });
 
 /** Everything owed, by when it falls due, against cash on hand: for planning payments. */
-export function Payables() {
+export function Payables({ canPay = true }: { canPay?: boolean }) {
   const { data, error } = useLoad<PayablesSummary>("/payables");
   const [kinds, setKinds] = useState<Set<PayableKind>>(new Set(PAYABLE_KINDS.map((k) => k.kind)));
   const [open, setOpen] = useState<Set<string>>(new Set(["overdue", "week"]));
@@ -27,7 +27,7 @@ export function Payables() {
   const after30 = data.cashCents - overdue - week - month;
   const plan = weeklyPlan(items, data.cashCents, today);
   const toggleKind = (k: PayableKind) => setKinds((s) => (s.has(k) ? new Set([...s].filter((x) => x !== k)) : new Set([...s, k])));
-  const payable = (i: PayableItem) => (i.key.startsWith("bill:") || i.key.startsWith("inst:")) && toPay(i) > 0;
+  const payable = (i: PayableItem) => canPay && (i.key.startsWith("bill:") || i.key.startsWith("inst:")) && toPay(i) > 0;
   const chosen = (data.items ?? []).filter((i) => selected.has(i.key) && payable(i));
   const chosenBooks = new Set(chosen.map((i) => i.book));
   const toggleSelect = (k: string) => setSelected((s) => (s.has(k) ? new Set([...s].filter((x) => x !== k)) : new Set([...s, k])));
@@ -184,7 +184,7 @@ export function Payables() {
                             {i.pendingCents > 0 && <div className="small muted">{peso(i.pendingCents)} in a payment waiting for approval</div>}
                           </td>
                           <td className="num">{peso(toPay(i))}</td>
-                          <td>{i.pay && toPay(i) > 0 && <Link to={payLink(i)}>Pay</Link>}</td>
+                          <td>{canPay && i.pay && toPay(i) > 0 && <Link to={payLink(i)}>Pay</Link>}</td>
                         </tr>
                       ))}
                   </Fragment>

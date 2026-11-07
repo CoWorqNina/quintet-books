@@ -8,7 +8,7 @@ import { serviceClient } from "../supabase";
 // Owners manage who can sign in and what each person sees. Every change is in the audit log.
 export const users = new Hono<AppContext>();
 
-const ROLES: Role[] = ["Owner", "Accountant", "Supervisor", "Staff", "Commissary In-charge"];
+const ROLES: Role[] = ["Owner", "Partner", "Accountant", "Supervisor", "Staff", "Commissary In-charge"];
 type Access = { fullName?: string; role?: Role; books?: string[]; profitCenters?: string[]; active?: boolean };
 
 users.use("/*", async (c, next) => {

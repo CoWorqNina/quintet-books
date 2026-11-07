@@ -21,6 +21,8 @@ export function checkProfitCenter(user: AppUser, pc: ProfitCenter | string) {
 
 export const isOwner = (u: AppUser) => u.role === "Owner";
 export const seesEverything = (u: AppUser) => u.role === "Owner" || u.role === "Accountant";
+/** Read-only access to the books and reports: Owners, the Accountant, and Partners (owners who don't post). */
+export const viewsBooks = (u: AppUser) => seesEverything(u) || u.role === "Partner";
 
 /**
  * Applies the role's visibility to an entries or daily_reports query:
@@ -35,6 +37,7 @@ export function scopeQuery<Q extends { eq(c: string, v: unknown): Q; in(c: strin
   switch (user.role) {
     case "Owner":
     case "Accountant":
+    case "Partner":
       return query;
     case "Supervisor":
       return (opts.hasBook ? query.in("book", user.books) : query).in("profit_center", user.profitCenters);

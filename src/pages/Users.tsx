@@ -16,6 +16,7 @@ interface UserRow {
 const ROLES: Role[] = ["Owner", "Accountant", "Supervisor", "Staff", "Commissary In-charge"];
 const ROLE_HELP: Record<Role, string> = {
   Owner: "Everything, including approvals, closing months and managing users",
+  Partner: "An owner who submits expenses and payables and views the books and reports; can't approve or change the books",
   Accountant: "All entries, ledger, statements and month-end; can't approve",
   Supervisor: "Daily reports, deposits and entries for their store; inventory counts",
   Staff: "Daily reports and their own entries",

@@ -3,7 +3,7 @@ import { REIMBURSEMENTS } from "../../shared/accounts";
 import { billLabel } from "../../shared/ledger";
 import type { PayableItem, PayableKind, PayablesSummary } from "../../shared/payables";
 import type { Account } from "../../shared/types";
-import { seesEverything, todayManila } from "../access";
+import { viewsBooks, todayManila } from "../access";
 import { getAccounts } from "../airtable";
 import { dbError, forbidden } from "../db";
 import type { AppContext } from "../env";
@@ -20,7 +20,7 @@ type Installment = { id: number; seq: number; due_date: string; principal: numbe
 type LoanReg = { id: number; name: string; lender_name: string; account_code: string; book: "Store" | "Commissary"; in_force: boolean; installments: Installment[] | null };
 
 payables.get("/", async (c) => {
-  if (!seesEverything(c.get("user"))) forbidden();
+  if (!viewsBooks(c.get("user"))) forbidden();
   const today = todayManila();
   const db = serviceClient(c.env);
   const accounts = new Map((await getAccounts(c.env)).map((a) => [a.code, a]));

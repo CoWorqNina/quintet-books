@@ -2,7 +2,7 @@
 
 export type Book = "Store" | "Commissary";
 export type ProfitCenter = "GGC" | "The Nest" | "Shared";
-export type Role = "Owner" | "Accountant" | "Supervisor" | "Staff" | "Commissary In-charge";
+export type Role = "Owner" | "Accountant" | "Supervisor" | "Staff" | "Commissary In-charge" | "Partner";
 
 export interface AppUser {
   id: string;

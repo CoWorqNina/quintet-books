@@ -11,7 +11,7 @@ import { logJudgment } from "../judgment";
 export const parties = new Hono<AppContext>();
 
 const CAN_ADD: Record<Party["type"], Role[]> = {
-  Supplier: ["Owner", "Accountant", "Supervisor", "Commissary In-charge"],
+  Supplier: ["Owner", "Accountant", "Supervisor", "Commissary In-charge", "Partner"],
   Employee: ["Owner", "Accountant"],
   Owner: ["Owner"],
   Lender: ["Owner", "Accountant"],

@@ -5,7 +5,7 @@ import { BRAND_COLUMNS, brandIncomeStatement, ratios } from "../../shared/manage
 import { formatPeso, toCents } from "../../shared/money";
 import { balanceSheet, balanceSheetColumn, CASH_CATEGORIES, cashAccounts, cashFlows, incomeStatement, type StatementRow } from "../../shared/statements";
 import type { Book } from "../../shared/types";
-import { seesEverything, todayManila } from "../access";
+import { viewsBooks, todayManila } from "../access";
 import { getAccounts, listAll, TABLES } from "../airtable";
 import { runChecks } from "../checks";
 import { badRequest, dbError, forbidden } from "../db";
@@ -22,7 +22,7 @@ import { cashLines, dayBefore, loansDueWithinYear, monthLabel, prevPeriod, state
 export const reports = new Hono<AppContext>();
 
 reports.get("/management", async (c) => {
-  if (!seesEverything(c.get("user"))) forbidden("Only an Owner or the Accountant sees the management report.");
+  if (!viewsBooks(c.get("user"))) forbidden("Only Owners, Partners or the Accountant see the management report.");
   const period = c.req.query("period") ?? prevPeriod(todayManila().slice(0, 7));
   if (!/^\d{4}-\d{2}$/.test(period)) badRequest("Choose a month.");
   const db = serviceClient(c.env);

@@ -67,6 +67,8 @@ export default function App() {
   const canEnter = templatesFor(user.role, user.books).length > 0;
   const isOwner = user.role === "Owner";
   const isBooks = isOwner || user.role === "Accountant";
+  // Partners (owners who don't post) see the books and reports, read-only.
+  const canView = isBooks || user.role === "Partner";
   const canCount = user.role === "Supervisor" || user.role === "Commissary In-charge";
 
   return (
@@ -84,11 +86,11 @@ export default function App() {
           {canEnter && <NavLink to="/entries/new">New entry</NavLink>}
           {isOwner && <NavLink to="/approvals">Approvals</NavLink>}
           <NavLink to="/journal">Journal</NavLink>
-          {isBooks && <NavLink to="/cash">Cash Register</NavLink>}
-          {isBooks && <NavLink to="/payables">Payables</NavLink>}
-          {isBooks && <NavLink to="/report">Report</NavLink>}
-          {isBooks && <NavLink to="/statements">Statements</NavLink>}
-          {isBooks && <NavLink to="/ledger">Ledger</NavLink>}
+          {canView && <NavLink to="/cash">Cash Register</NavLink>}
+          {canView && <NavLink to="/payables">Payables</NavLink>}
+          {canView && <NavLink to="/report">Report</NavLink>}
+          {canView && <NavLink to="/statements">Statements</NavLink>}
+          {canView && <NavLink to="/ledger">Ledger</NavLink>}
           {(isBooks || canCount) && <NavLink to={isBooks ? "/month-end" : "/month-end/inventory"}>Month-end</NavLink>}
           {isBooks && <NavLink to="/classify">For classification</NavLink>}
           {isBooks && <NavLink to="/entries/manual">Special entry</NavLink>}
@@ -119,11 +121,11 @@ export default function App() {
           {isOwner && <Route path="/opening-balances" element={<ManualEntry user={user} opening />} />}
           {isBooks && <Route path="/classify" element={<Classify user={user} />} />}
           {isBooks && <Route path="/registers" element={<Registers user={user} />} />}
-          {isBooks && <Route path="/ledger/*" element={<Ledger />} />}
-          {isBooks && <Route path="/payables" element={<Payables />} />}
-          {isBooks && <Route path="/cash" element={<CashReceivables />} />}
-          {isBooks && <Route path="/statements/*" element={<Statements />} />}
-          {isBooks && <Route path="/report" element={<ManagementReport />} />}
+          {canView && <Route path="/ledger/*" element={<Ledger />} />}
+          {canView && <Route path="/payables" element={<Payables canPay={isBooks} />} />}
+          {canView && <Route path="/cash" element={<CashReceivables />} />}
+          {canView && <Route path="/statements/*" element={<Statements />} />}
+          {canView && <Route path="/report" element={<ManagementReport />} />}
           {isOwner && <Route path="/users" element={<Users user={user} />} />}
           {(isBooks || canCount) && <Route path="/month-end/*" element={<MonthEnd user={user} />} />}
           <Route path="*" element={<p>Page not found.</p>} />

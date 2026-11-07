@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { isBalanced } from "./entries";
 import type { OpenBill } from "./ledger";
-import { getTemplate, type TemplateContext } from "./templates";
+import { getTemplate, type TemplateContext, templatesFor } from "./templates";
 import type { Account, Book, Party } from "./types";
 import testAccounts from "./test-accounts.json";
 
@@ -517,5 +517,13 @@ describe("assets, prepaids and loans", () => {
     ]);
     const o = build(37, { date: "2026-11-03", owner: "recKai", amount: 1000, bank: "1140", reference: "x" });
     expect(o.entries[0].lines[0]).toMatchObject({ account_code: "1250", party_name: "Kai Denila" });
+  });
+});
+
+describe("Partner role", () => {
+  it("submits expenses and their payables only: no payments, payroll, loans or owner money", () => {
+    const nums = templatesFor("Partner", ["Store"]).map((t) => t.number);
+    expect(nums).toEqual(expect.arrayContaining([12, 13, 17, 30]));
+    for (const n of [7, 9, 10, 14, 18, 22, 23, 33, 34, 35, 37, 44]) expect(nums).not.toContain(n);
   });
 });

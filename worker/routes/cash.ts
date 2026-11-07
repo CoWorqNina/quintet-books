@@ -3,7 +3,7 @@ import { allocate, summarize } from "../../shared/cash";
 import { CLEARING_LIMIT_DAYS, groupBy, openItems, type PartyLine } from "../../shared/ledger";
 import { toCents } from "../../shared/money";
 import type { Account } from "../../shared/types";
-import { seesEverything, todayManila } from "../access";
+import { todayManila, viewsBooks } from "../access";
 import { getAccounts } from "../airtable";
 import { badRequest, dbError, forbidden } from "../db";
 import type { AppContext } from "../env";
@@ -39,7 +39,7 @@ type CashLine = { entry_id: number; entry_date: string; book: string; account_co
 // Cash per account for a date range (opening, in, out, closing, where it came from and went),
 // and receivables per account and party at the end of the range.
 cash.get("/", async (c) => {
-  if (!seesEverything(c.get("user"))) forbidden();
+  if (!viewsBooks(c.get("user"))) forbidden();
   const { from, to } = range(c);
   const db = serviceClient(c.env);
   const accounts = new Map((await getAccounts(c.env)).map((a) => [a.code, a]));
@@ -96,7 +96,7 @@ cash.get("/", async (c) => {
 
 // Every movement of one account in the range, with what it was against and a running balance.
 cash.get("/movements", async (c) => {
-  if (!seesEverything(c.get("user"))) forbidden();
+  if (!viewsBooks(c.get("user"))) forbidden();
   const { from, to } = range(c);
   const code = c.req.query("account") ?? "";
   const accounts = new Map((await getAccounts(c.env)).map((a) => [a.code, a]));

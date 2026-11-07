@@ -35,7 +35,7 @@ import {
 } from "./common";
 
 /** Store encoders plus the Commissary In-charge, who records Commissary purchases. */
-const PURCHASERS: Role[] = [...ENCODERS, "Commissary In-charge"];
+const PURCHASERS: Role[] = [...ENCODERS, "Commissary In-charge", "Partner"];
 const AP = "2100";
 const ADVANCES_TO_SUPPLIERS = "1260";
 const SMALLWARES = "6620";
@@ -318,7 +318,7 @@ export const personalFundPurchase: Template = {
   number: 17,
   name: "Personal-Fund Purchase",
   group: "Purchases",
-  roles: OWNERS_ACCOUNTANT,
+  roles: [...OWNERS_ACCOUNTANT, "Partner"],
   books: ALL_BOOKS,
   batchApproval: true,
   fields: [
