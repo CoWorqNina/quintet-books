@@ -41,7 +41,7 @@ export const loanProceeds: Template = {
   batchApproval: false,
   fields: [
     dateField,
-    { name: "name", label: "Loan name", type: "text", required: true, help: "e.g. UB loan (Nj card) 2026" },
+    { name: "name", label: "Loan name", type: "text", required: true, help: "e.g. UB loan (owner's card) 2026" },
     { name: "lender", label: "Lender", type: "party", partyType: "Lender", required: true },
     { name: "account", label: "Loans Payable account (one per loan)", type: "account", filter: "loan", required: true },
     { name: "interestAccount", label: "Interest expense account", type: "account", filter: "interest", required: true },

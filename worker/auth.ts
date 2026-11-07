@@ -26,7 +26,7 @@ export const requireUser = createMiddleware<AppContext>(async (c, next) => {
     .maybeSingle();
   if (dbError) return c.json({ error: "Could not load your account" }, 500);
   if (!row || !row.active) {
-    return c.json({ error: "Your login is not set up in GGC Books yet. Ask Nina or Kai to add you." }, 403);
+    return c.json({ error: "Your login is not set up in GGC Books yet. Ask an Owner to add you." }, 403);
   }
 
   const user: AppUser = {

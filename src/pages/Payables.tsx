@@ -111,7 +111,7 @@ export function Payables({ canPay = true }: { canPay?: boolean }) {
 
       <div className="card">
         <h2>Bills by due date</h2>
-        <p className="muted small">Tick several to pay them in one transfer (e.g. everything on Kai's cards, SPayLater and card loans, paid to Kai).</p>
+        <p className="muted small">Tick several to pay them in one transfer (e.g. everything on one owner's cards, SPayLater and card loans, paid to that owner).</p>
         {chosen.length > 0 && (
           <div className="notice row-actions" style={{ position: "sticky", top: 0, zIndex: 2 }}>
             <strong>

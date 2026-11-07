@@ -44,7 +44,7 @@ export const combinedPayment: Template = {
   batchApproval: true,
   fields: [
     dateField,
-    { name: "payTo", label: "Paid to", type: "text", required: true, help: "Who received the transfer, e.g. Kai (for his cards and card loans)" },
+    { name: "payTo", label: "Paid to", type: "text", required: true, help: "Who received the transfer, e.g. the owner whose cards and card loans this pays" },
     combinedItems,
     { name: "paidFrom", label: "Paid from", type: "account", filter: "bank", required: true },
     transferFeeField,
