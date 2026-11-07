@@ -13,7 +13,7 @@ interface UserRow {
   active: boolean;
 }
 
-const ROLES: Role[] = ["Owner", "Accountant", "Supervisor", "Staff", "Commissary In-charge"];
+const ROLES: Role[] = ["Owner", "Partner", "Accountant", "Supervisor", "Staff", "Commissary In-charge"];
 const ROLE_HELP: Record<Role, string> = {
   Owner: "Everything, including approvals, closing months and managing users",
   Partner: "An owner who submits expenses and payables and views the books and reports; can't approve or change the books",
