@@ -20,6 +20,8 @@ import {
   str,
   type BuildResult,
   type Template,
+  otherSources,
+  otherSourcesField,
   transferFeeField,
   transferFeeLines,
 } from "./common";
@@ -126,6 +128,7 @@ export const loanInstallment: Template = {
     { name: "loan", label: "Loan", type: "loan", required: true },
     { name: "paidFrom", label: "Paid from", type: "account", filter: "bank", required: true },
     transferFeeField,
+    otherSourcesField,
     { name: "reference", label: "Payment reference", type: "text", required: true },
     { name: "proof", label: "Payment proof", type: "attachment" },
   ],
@@ -145,6 +148,7 @@ export const loanInstallment: Template = {
     const interest = next ? Math.round(next.interest * 100) : 0;
     const accrued = next?.interestRecorded ? interest : 0;
     const total = principal + interest;
+    const split = otherSources(v, ctx, total, "34.paid", errors, str(v.paidFrom));
     const entry = loan
       ? makeEntry(
           ctx,
@@ -156,7 +160,9 @@ export const loanInstallment: Template = {
             debit(ACCRUED_INTEREST, accrued, "34.accrued", { party_id: `loan:${loan.id}`, party_name: loan.name }),
             debit(loan.interestAccount, interest - accrued, "34.interest", { profit_center: "GGC" }),
             ...fee.lines,
-            credit(str(v.paidFrom), total + fee.feeCents, "34.paid"),
+            ...split.feeLines,
+            credit(str(v.paidFrom), split.mainCents + fee.feeCents, "34.paid"),
+            ...split.credits,
           ],
           { source_document: str(v.reference), attachments: attachmentsOf(v.proof) },
         )

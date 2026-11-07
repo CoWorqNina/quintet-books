@@ -28,6 +28,8 @@ import {
   str,
   type Template,
   type TemplateContext,
+  otherSources,
+  otherSourcesField,
   transferFeeField,
   transferFeeLines,
 } from "./common";
@@ -209,6 +211,7 @@ export const supplierPayment: Template = {
       help: "A bank or e-wallet, or an owner's credit card or SPayLater",
     },
     transferFeeField,
+    otherSourcesField,
     { name: "reference", label: "Transfer / check reference", type: "text" },
     { name: "proof", label: "Payment proof", type: "attachment" },
   ],
@@ -219,6 +222,7 @@ export const supplierPayment: Template = {
     const from = checkAccount(str(v.paidFrom), "bankOrCard", "Paid from", ctx, errors);
     const { lines, totalCents, labels } = settleLines(supplierBills, v, ctx, errors, "14.ap");
     const fee = transferFeeLines(v, ctx, "14.fee", errors, from);
+    const split = otherSources(v, ctx, totalCents, "14.paid", errors, str(v.paidFrom));
     return result(
       errors,
       makeEntry(
@@ -226,7 +230,13 @@ export const supplierPayment: Template = {
         v,
         14,
         `Payment to ${supplier?.name ?? "supplier"}`,
-        [...lines, ...fee.lines, paidLine(ctx, str(v.paidFrom), totalCents + fee.feeCents, "14.paid", supplier?.name ?? null, labels.join(", "))],
+        [
+          ...lines,
+          ...fee.lines,
+          ...split.feeLines,
+          paidLine(ctx, str(v.paidFrom), split.mainCents + fee.feeCents, "14.paid", supplier?.name ?? null, labels.join(", ")),
+          ...split.credits,
+        ],
         { source_document: [labels.join(", "), str(v.reference)].filter(Boolean).join(" · ") || null, attachments: attachmentsOf(v.proof) },
       ),
     );
@@ -361,6 +371,7 @@ export const reimbursementPaid: Template = {
     payableBills,
     { name: "paidFrom", label: "Paid from", type: "account", filter: "bank", required: true },
     transferFeeField,
+    otherSourcesField,
     { name: "reference", label: "Transfer reference", type: "text" },
     { name: "proof", label: "Transfer proof", type: "attachment" },
   ],
@@ -371,6 +382,7 @@ export const reimbursementPaid: Template = {
     const bank = checkAccount(str(v.paidFrom), "bank", "Paid from", ctx, errors);
     const { lines, totalCents, labels } = settleLines(payableBills, v, ctx, errors, "18.reimbursement");
     const fee = transferFeeLines(v, ctx, "18.fee", errors, bank);
+    const split = otherSources(v, ctx, totalCents, "18.paid", errors, str(v.paidFrom));
     return result(
       errors,
       makeEntry(
@@ -378,7 +390,7 @@ export const reimbursementPaid: Template = {
         v,
         18,
         `Paid: ${payable?.name ?? ""}`,
-        [...lines, ...fee.lines, credit(str(v.paidFrom), totalCents + fee.feeCents, "18.paid")],
+        [...lines, ...fee.lines, ...split.feeLines, credit(str(v.paidFrom), split.mainCents + fee.feeCents, "18.paid"), ...split.credits],
         { source_document: [str(v.reference), `${labels.length} charge${labels.length === 1 ? "" : "s"}`].filter(Boolean).join(" · "), attachments: attachmentsOf(v.proof) },
       ),
     );

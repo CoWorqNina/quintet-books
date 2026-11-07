@@ -2,7 +2,7 @@
 // in and builds the entries from them; the encoder never picks debits or credits.
 
 import { accountMatches, type AccountFilter, needsQuantity, profitCenterAllowed } from "../accounts";
-import { type Attachment, type EntryDraft, finishEntry, type LineDraft, debit } from "../entries";
+import { type Attachment, type EntryDraft, finishEntry, type LineDraft, credit, debit } from "../entries";
 import { billLabel, type OpenBill } from "../ledger";
 import { formatPeso, toCents } from "../money";
 import type { Account, Book, Party, ProfitCenter, Role } from "../types";
@@ -357,4 +357,50 @@ export function transferFeeLines(v: Values, ctx: TemplateContext, templateLine: 
     lines: [debit(BANK_CHARGES, fee, templateLine, { profit_center: ctx.book === "Commissary" ? "GGC" : ctx.profitCenter, memo: "Transfer fee" })],
     feeCents: fee,
   };
+}
+
+/** Other accounts a payment was partly drawn from, when no single account had enough. */
+export const otherSourcesField: Field = {
+  name: "otherSources",
+  label: "Also paid from (split across accounts)",
+  type: "rows",
+  help: "Only if part of this payment came from another bank or e-wallet. The account above pays the rest",
+  columns: [
+    { name: "account", label: "Bank / e-wallet", type: "account", filter: "bank", required: true },
+    { name: "amount", label: "Amount from this account", type: "money", required: true },
+    { name: "fee", label: "Its transfer fee", type: "money" },
+  ],
+};
+
+/**
+ * A payment drawn from several accounts: one credit per other account (amount plus its own
+ * fee), fees to Bank Charges, and what's left for the main "Paid from" account.
+ */
+export function otherSources(v: Values, ctx: TemplateContext, totalCents: number, templateLine: string, errors: string[], mainCode: string) {
+  const credits: LineDraft[] = [];
+  let coveredCents = 0;
+  let feeCents = 0;
+  const seen = new Set<string>([mainCode]);
+  rowsOf(v.otherSources).forEach((row, i) => {
+    const n = `Also paid from, line ${i + 1}`;
+    const code = str(row.account);
+    const amount = cents(row.amount);
+    const fee = cents(row.fee);
+    if (!code && !amount) return;
+    checkAccount(code, "bank", n, ctx, errors);
+    if (seen.has(code)) errors.push(`${n}: each account appears once (the main "Paid from" account takes the rest).`);
+    seen.add(code);
+    if (amount <= 0) errors.push(`${n}: enter the amount taken from this account.`);
+    if (fee < 0) errors.push(`${n}: the fee can't be negative.`);
+    coveredCents += Math.max(0, amount);
+    feeCents += Math.max(0, fee);
+    credits.push(credit(code, Math.max(0, amount) + Math.max(0, fee), templateLine, { memo: "Part of this payment" }));
+  });
+  if (credits.length && coveredCents >= totalCents) {
+    errors.push(`The other accounts cover ${formatPeso(coveredCents)} of ${formatPeso(totalCents)}; leave some for the main "Paid from" account, or make it the main one.`);
+  }
+  const feeLines = feeCents
+    ? [debit(BANK_CHARGES, feeCents, templateLine.replace(/\.paid$/, ".fee"), { profit_center: ctx.book === "Commissary" ? "GGC" : ctx.profitCenter, memo: "Transfer fees" })]
+    : [];
+  return { credits, feeLines, mainCents: totalCents - coveredCents };
 }

@@ -173,6 +173,26 @@ describe("purchase templates", () => {
     ]);
   });
 
+  it("a payment can be drawn from several accounts, each with its own fee", () => {
+    const r = build(18, {
+      date: "2026-11-04", person: "2191", paidFrom: "1140", transferFee: 15,
+      bills: [{ lineId: 21, amount: 3000 }, { lineId: 22, amount: 700 }],
+      otherSources: [{ account: "1150", amount: 1200, fee: 10 }],
+    }, billsCtx);
+    expect(r.errors).toEqual([]);
+    expect(lines(r)).toEqual([
+      ["2191", 3000_00, 0],
+      ["2191", 700_00, 0],
+      ["6740", 15_00, 0],
+      ["6740", 10_00, 0],
+      ["1140", 0, 2515_00],
+      ["1150", 0, 1210_00],
+    ]);
+    // the other accounts can't cover everything, or repeat the main account
+    expect(build(18, { date: "2026-11-04", person: "2191", paidFrom: "1140", bills: [{ lineId: 22, amount: 700 }], otherSources: [{ account: "1150", amount: 700 }] }, billsCtx).errors.join()).toMatch(/leave some for the main/);
+    expect(build(18, { date: "2026-11-04", person: "2191", paidFrom: "1140", bills: [{ lineId: 22, amount: 700 }], otherSources: [{ account: "1140", amount: 100 }] }, billsCtx).errors.join()).toMatch(/each account appears once/);
+  });
+
   it("#14 paid with a card moves the debt to the card", () => {
     const r = build(14, { date: "2026-11-03", supplier: "recSup", bills: [{ lineId: 11, amount: 4200 }], paidFrom: "2191" }, billsCtx);
     expect(r.errors).toEqual([]);

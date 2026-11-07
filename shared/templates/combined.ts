@@ -19,6 +19,8 @@ import {
   settleLines,
   str,
   type Template,
+  otherSources,
+  otherSourcesField,
   transferFeeField,
   transferFeeLines,
 } from "./common";
@@ -46,6 +48,7 @@ export const combinedPayment: Template = {
     combinedItems,
     { name: "paidFrom", label: "Paid from", type: "account", filter: "bank", required: true },
     transferFeeField,
+    otherSourcesField,
     { name: "reference", label: "Transfer reference", type: "text" },
     { name: "proof", label: "Transfer proof", type: "attachment" },
   ],
@@ -84,6 +87,7 @@ export const combinedPayment: Template = {
     }
     const total = bills.totalCents + lines.reduce((s, l) => s + l.debitCents, 0);
     const count = bills.lines.length + ids.length;
+    const split = otherSources(v, ctx, total, "44.paid", errors, str(v.paidFrom));
     if (!count && !errors.some((e) => e.startsWith(combinedItems.label))) errors.push(`${combinedItems.label} is required.`);
     const payTo = str(v.payTo);
     const entry = makeEntry(
@@ -91,7 +95,14 @@ export const combinedPayment: Template = {
       v,
       44,
       `Combined payment to ${payTo || "…"}: ${count} item${count === 1 ? "" : "s"} (${formatPeso(total)})`,
-      [...bills.lines, ...lines, ...fee.lines, credit(str(v.paidFrom), total + fee.feeCents, "44.paid", { party_name: payTo || null })],
+      [
+        ...bills.lines,
+        ...lines,
+        ...fee.lines,
+        ...split.feeLines,
+        credit(str(v.paidFrom), split.mainCents + fee.feeCents, "44.paid", { party_name: payTo || null }),
+        ...split.credits,
+      ],
       { source_document: str(v.reference) || null, attachments: attachmentsOf(v.proof) },
     );
     return { ...result(errors, entry), register: ids.length ? { type: "loan_payments", data: { installment_ids: ids } } : undefined };
