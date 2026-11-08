@@ -13,7 +13,8 @@ export const NO_RECEIPT_LIMIT_CENTS = 300_00;
 export type DailyProfitCenter = "GGC" | "The Nest";
 
 export interface PaidOut {
-  kind: "expense" | "advance" | "unclassified";
+  /** cashout: someone sends money to the store's GCash and takes the same amount in cash from the drawer. */
+  kind: "expense" | "advance" | "cashout" | "unclassified";
   description: string;
   amount: number;
   accountCode?: string; // expense only
@@ -23,7 +24,7 @@ export interface PaidOut {
   quantity?: number | null;
   unit?: string | null;
   unitPrice?: number | null;
-  receipt?: Attachment | null; // receipt (expense) or signed acknowledgment (advance)
+  receipt?: Attachment | null; // receipt (expense), signed CA form (advance) or GCash screenshot (cash out)
   noReceiptApproved?: boolean; // expense of ₱300 or less without receipt, approved by the Supervisor
 }
 
@@ -294,6 +295,21 @@ export function buildDailyReport(
               memo: label,
             }),
             credit(cash.pettyCash, amount, "26.petty_cash"),
+          ],
+        }),
+      );
+    } else if (p.kind === "cashout") {
+      // GCash cash out: the money is now in the store's GCash instead of the drawer (#10 transfer).
+      if (!cash.gcash) errors.push(`Paid-out ${n} (${label}): ${pc}'s GCash account is not set up yet, so cash outs can't be recorded.`);
+      entries.push(
+        finishEntry({
+          ...base,
+          transaction_type: 10,
+          description: label ? `GCash cash out: ${label}` : "GCash cash out",
+          attachments: p.receipt ? [p.receipt] : [],
+          lines: [
+            debit(cash.gcash ?? "", amount, "10.to", { memo: label || "Cash out" }),
+            credit(cash.pettyCash, amount, "10.from", { memo: label || "Cash out" }),
           ],
         }),
       );

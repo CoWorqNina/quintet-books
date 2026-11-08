@@ -133,6 +133,19 @@ describe("buildDailyReport", () => {
     expect(errors).toMatch(/5210 Coffee Beans can't be tagged GGC/);
   });
 
+  it("a GCash cash out moves the amount from the drawer to the store's GCash", () => {
+    const input = oct29();
+    input.paidOuts.push({ kind: "cashout", description: "Jessa, GCash ref 5012", amount: 500 });
+    const r = buildDailyReport(input, accounts);
+    const e = r.entries.find((x) => x.description === "GCash cash out: Jessa, GCash ref 5012")!;
+    expect(e.transaction_type).toBe(10);
+    expect(e.lines.map((l) => [l.account_code, l.debitCents, l.creditCents])).toEqual([
+      ["1150", 500_00, 0],
+      ["1120", 0, 500_00],
+    ]);
+    expect(r.figures.paidOutCents).toBe(buildDailyReport(oct29(), accounts).figures.paidOutCents + 500_00);
+  });
+
   it("uses The Nest's own cash and GCash accounts", () => {
     const input = oct29();
     input.profitCenter = "The Nest";

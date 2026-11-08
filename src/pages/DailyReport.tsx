@@ -181,6 +181,7 @@ export default function DailyReport({ user }: { user: AppUser }) {
                   <select value={p.kind} onChange={(e) => setPaidOut(i, { kind: e.target.value as PaidOut["kind"] })}>
                     <option value="expense">Expense / purchase</option>
                     <option value="advance">Employee cash advance</option>
+                    <option value="cashout">Cash out (sent to our GCash, cash taken from the drawer)</option>
                     <option value="unclassified">Not sure (classify later)</option>
                   </select>
                 </label>
@@ -234,7 +235,9 @@ export default function DailyReport({ user }: { user: AppUser }) {
                 <AttachmentPicker
                   value={p.receipt ? [p.receipt] : []}
                   onChange={(v) => setPaidOut(i, { receipt: v[0] ?? null })}
-                  label={p.kind === "advance" ? "Attach signed CA form (optional)" : "Attach receipt (optional)"}
+                  label={
+                    p.kind === "advance" ? "Attach signed CA form (optional)" : p.kind === "cashout" ? "Attach GCash screenshot (optional)" : "Attach receipt (optional)"
+                  }
                 />
                 <button type="button" className="link danger" onClick={() => setPaidOuts(paidOuts.filter((_, j) => j !== i))}>
                   Remove
