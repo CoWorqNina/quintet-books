@@ -106,20 +106,30 @@ describe("buildDailyReport", () => {
     input.paidOuts[1].quantity = null;
     input.paidOuts[2].amount = 400;
     const errors = buildDailyReport(input, accounts).errors.join("\n");
-    expect(errors).toMatch(/Payment channels add up/);
     expect(errors).toMatch(/should equal the actual count/);
     expect(errors).toMatch(/Food charges per employee/);
     expect(errors).toMatch(/ingredients need quantity/);
   });
 
-  it("refuses ₱300+ expenses without a receipt and wrong-profit-center accounts", () => {
+  it("net is the total of the payment types and gross adds back refunds and discounts", () => {
+    const input = oct29();
+    input.pos.gross = 0;
+    input.pos.net = 0; // typed values are ignored
+    const r = buildDailyReport(input, accounts);
+    expect(r.figures.netSalesCents).toBe(46365_20);
+    expect(r.figures.grossSalesCents).toBe(47784_00);
+  });
+
+  it("an expense without a receipt is accepted but flagged; wrong-profit-center accounts are refused", () => {
     const input = oct29();
     input.paidOuts[1].receipt = null;
     input.paidOuts.push({ kind: "expense", description: "Coffee beans", amount: 10, accountCode: "5210", quantity: 1, unit: "kg", unitPrice: 10, receipt: photo });
     input.drawer.nextDayPettyCash = 5185;
     input.drawer.cashRemitted = 18010;
-    const errors = buildDailyReport(input, accounts).errors.join("\n");
-    expect(errors).toMatch(/over ₱300 needs a receipt/);
+    const r = buildDailyReport(input, accounts);
+    const errors = r.errors.join("\n");
+    expect(errors).not.toMatch(/receipt/);
+    expect(r.entries.find((e) => e.description === "Mineral water")?.unsupported).toBe(true);
     expect(errors).toMatch(/5210 Coffee Beans can't be tagged GGC/);
   });
 

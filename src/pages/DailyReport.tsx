@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { cashAccountsFor, isBankAccount, needsQuantity } from "../../shared/accounts";
-import { buildDailyReport, type DailyReportInput, NO_RECEIPT_LIMIT_CENTS, type PaidOut } from "../../shared/dailyReport";
+import { buildDailyReport, type DailyReportInput, type PaidOut } from "../../shared/dailyReport";
 import type { Attachment } from "../../shared/entries";
 import { formatPeso, toCents } from "../../shared/money";
 import type { AppUser } from "../../shared/types";
@@ -51,14 +51,16 @@ export default function DailyReport({ user }: { user: AppUser }) {
   const owners = useParties().filter((p) => p.type === "Owner" && p.active);
   const cash = cashAccountsFor(profitCenter);
 
+  const netCents = POS_FIELDS.reduce((t, [k]) => t + toCents(Number(pos[k]) || 0), 0);
+  const grossCents = netCents + toCents(Number(pos.refunds) || 0) + toCents(Number(pos.discounts) || 0);
   const input: DailyReportInput = {
     businessDate,
     profitCenter,
     pos: {
-      gross: +pos.gross || 0,
+      gross: grossCents / 100,
       refunds: +pos.refunds || 0,
       discounts: +pos.discounts || 0,
-      net: +pos.net || 0,
+      net: netCents / 100,
       cash: +pos.cash || 0,
       card: +pos.card || 0,
       gcash: +pos.gcash || 0,
@@ -129,13 +131,23 @@ export default function DailyReport({ user }: { user: AppUser }) {
 
       <div className="card">
         <h2>1. POS sales summary</h2>
-        <div className="grid4">
+        <h3>Paid by</h3>
+        <p className="muted small">Enter what the POS shows per payment type. Net and gross sales are worked out for you.</p>
+        <div className="grid3">
+          {POS_FIELDS.map(([k, label]) => (
+            <label key={k}>
+              {label}
+              <MoneyInput value={pos[k]} onChange={(v) => setPos({ ...pos, [k]: v })} />
+            </label>
+          ))}
+          <Readout label="Net sales (total of the above)" cents={netCents} />
+        </div>
+        <h3>Add back</h3>
+        <div className="grid3">
           {(
             [
-              ["gross", "Gross sales"],
               ["refunds", "Refunds"],
               ["discounts", "Discounts"],
-              ["net", "Net sales"],
             ] as const
           ).map(([k, label]) => (
             <label key={k}>
@@ -143,6 +155,7 @@ export default function DailyReport({ user }: { user: AppUser }) {
               <MoneyInput value={pos[k]} onChange={(v) => setPos({ ...pos, [k]: v })} />
             </label>
           ))}
+          <Readout label="Gross sales (net + refunds + discounts)" cents={grossCents} />
         </div>
         {toCents(pos.discounts) > 0 && (
           <label className="inline">
@@ -154,22 +167,12 @@ export default function DailyReport({ user }: { user: AppUser }) {
             </select>
           </label>
         )}
-        <h3>Paid by</h3>
-        <div className="grid3">
-          {POS_FIELDS.map(([k, label]) => (
-            <label key={k}>
-              {label}
-              <MoneyInput value={pos[k]} onChange={(v) => setPos({ ...pos, [k]: v })} />
-            </label>
-          ))}
-        </div>
       </div>
 
       <div className="card">
         <h2>2. Paid out of the drawer</h2>
         {paidOuts.map((p, i) => {
           const account = p.accountCode ? accounts.get(p.accountCode) : undefined;
-          const small = toCents(p.amount) > 0 && toCents(p.amount) <= NO_RECEIPT_LIMIT_CENTS;
           return (
             <div key={i} className="row-card">
               <div className="grid4">
@@ -231,18 +234,8 @@ export default function DailyReport({ user }: { user: AppUser }) {
                 <AttachmentPicker
                   value={p.receipt ? [p.receipt] : []}
                   onChange={(v) => setPaidOut(i, { receipt: v[0] ?? null })}
-                  label={p.kind === "advance" ? "Attach signed acknowledgment" : "Attach receipt"}
+                  label={p.kind === "advance" ? "Attach signed CA form (optional)" : "Attach receipt (optional)"}
                 />
-                {p.kind === "expense" && !p.receipt && small && (
-                  <label className="inline">
-                    <input
-                      type="checkbox"
-                      checked={!!p.noReceiptApproved}
-                      onChange={(e) => setPaidOut(i, { noReceiptApproved: e.target.checked })}
-                    />
-                    No receipt, approved by Supervisor
-                  </label>
-                )}
                 <button type="button" className="link danger" onClick={() => setPaidOuts(paidOuts.filter((_, j) => j !== i))}>
                   Remove
                 </button>

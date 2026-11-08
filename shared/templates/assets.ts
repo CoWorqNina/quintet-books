@@ -63,7 +63,7 @@ export const assetPurchase: Template = {
     { name: "inUseDate", label: "Date put to use", type: "date", required: true },
     { name: "life", label: "Useful life (months)", type: "number", help: "Equipment 18, furniture 24, renovation 24" },
     { name: "popup", label: "Purchased for pop-ups", type: "checkbox" },
-    { name: "receipt", label: "Receipt / invoice", type: "attachment", required: true },
+    { name: "receipt", label: "Receipt / invoice", type: "attachment", help: "Optional. Without it the entry is flagged \"No receipt\" for the approver" },
   ],
   build(v, ctx): BuildResult {
     const errors: string[] = [];
@@ -94,7 +94,7 @@ export const assetPurchase: Template = {
         paidLine(ctx, str(v.paidFrom), paidNow, "29.paid", supplier?.name ?? null, name),
         credit(AP, onCredit, "29.ap", partyExtras(supplier)),
       ],
-      { attachments: attachmentsOf(v.receipt) },
+      { attachments: attachmentsOf(v.receipt), unsupported: !v.receipt },
     );
     return {
       ...result(errors, entry),

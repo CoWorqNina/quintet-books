@@ -47,7 +47,7 @@ export const storePaysCommissaryCost: Template = {
     { name: "description", label: "What was paid for", type: "text", required: true },
     { name: "paidFrom", label: "Store paid from", type: "account", filter: "payFrom", book: "Store", required: true },
     { name: "lines", label: "Commissary items", type: "rows", required: true, columns: COMMISSARY_EXPENSE_COLUMNS },
-    { name: "receipt", label: "Receipt photo", type: "attachment", required: true },
+    { name: "receipt", label: "Receipt photo", type: "attachment", help: "Optional. Without it the entry is flagged \"No receipt\" for the approver" },
   ],
   build(v, ctx) {
     const errors: string[] = [];
@@ -64,6 +64,7 @@ export const storePaysCommissaryCost: Template = {
       }),
       makeEntry(commissaryCtx(ctx), v, 19, `Paid by the Store: ${description}`, [...lines, credit(DUE_FROM_STORE, totalCents, "19.due_from")], {
         attachments,
+        unsupported: !v.receipt,
       }),
     );
   },

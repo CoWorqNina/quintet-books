@@ -1,7 +1,6 @@
 // Purchases, suppliers and reimbursements: #11-#18 and #30.
 
 import { cashAccountsFor, isCardAccount } from "../accounts";
-import { NO_RECEIPT_LIMIT_CENTS } from "../dailyReport";
 import { credit, debit } from "../entries";
 import type { Role } from "../types";
 import {
@@ -66,19 +65,13 @@ export const pettyCashExpense: Template = {
     { name: "description", label: "What was bought", type: "text", required: true },
     { name: "supplier", label: "Store / supplier", type: "text" },
     linesField,
-    { name: "receipt", label: "Receipt photo", type: "attachment" },
-    { name: "noReceiptApproved", label: "No receipt; ₱300 or less and approved by the Supervisor", type: "checkbox" },
+    { name: "receipt", label: "Receipt photo", type: "attachment", help: "Optional. Without it the entry is flagged \"No receipt\" for the approver" },
   ],
   build(v, ctx) {
     const errors: string[] = [];
     requireFields(this.fields, v, ctx, errors);
     const { lines, totalCents } = expenseLines(rowsOf(v.lines), ctx, errors, "11.expense");
-    let unsupported = false;
-    if (!v.receipt) {
-      if (totalCents > NO_RECEIPT_LIMIT_CENTS) errors.push("Over ₱300 needs a receipt photo.");
-      else if (!v.noReceiptApproved) errors.push("Attach the receipt, or tick that the Supervisor approved it without one.");
-      else unsupported = true;
-    }
+    const unsupported = !v.receipt;
     const supplier = str(v.supplier) || null;
     return result(
       errors,
@@ -114,7 +107,7 @@ export const purchasePaid: Template = {
     },
     { name: "reference", label: "Receipt / OR number", type: "text", required: true },
     linesField,
-    { name: "receipt", label: "Receipt photo", type: "attachment", required: true },
+    { name: "receipt", label: "Receipt photo", type: "attachment", help: "Optional. Without it the entry is flagged \"No receipt\" for the approver" },
   ],
   build(v, ctx) {
     const errors: string[] = [];
@@ -133,7 +126,7 @@ export const purchasePaid: Template = {
           ...lines.map((l) => ({ ...l, party_name: supplier?.name ?? null })),
           paidLine(ctx, str(v.paidFrom), totalCents, "12.paid", supplier?.name ?? null, str(v.reference) || null),
         ],
-        { source_document: str(v.reference), attachments: attachmentsOf(v.receipt) },
+        { source_document: str(v.reference), attachments: attachmentsOf(v.receipt), unsupported: !v.receipt },
       ),
     );
   },
@@ -153,7 +146,7 @@ export const purchaseOnCredit: Template = {
     { name: "deliveryDate", label: "Delivery date", type: "date", required: true },
     { name: "dueDate", label: "Due date", type: "date", help: "When the supplier expects payment" },
     linesField,
-    { name: "invoice", label: "Invoice photo", type: "attachment", required: true },
+    { name: "invoice", label: "Invoice photo", type: "attachment", help: "Optional. Without it the entry is flagged \"No receipt\" for the approver" },
   ],
   build(v, ctx) {
     const errors: string[] = [];
@@ -175,7 +168,7 @@ export const purchaseOnCredit: Template = {
             due_date: str(v.dueDate) || null,
           }),
         ],
-        { source_document: str(v.reference), attachments: attachmentsOf(v.invoice) },
+        { source_document: str(v.reference), attachments: attachmentsOf(v.invoice), unsupported: !v.invoice },
       ),
     );
   },
@@ -290,7 +283,7 @@ export const advanceApplied: Template = {
     supplierField,
     { name: "reference", label: "Delivery receipt number", type: "text", required: true },
     linesField,
-    { name: "receipt", label: "Delivery receipt photo", type: "attachment", required: true },
+    { name: "receipt", label: "Delivery receipt photo", type: "attachment", help: "Optional. Without it the entry is flagged \"No receipt\" for the approver" },
   ],
   build(v, ctx) {
     const errors: string[] = [];
@@ -308,7 +301,7 @@ export const advanceApplied: Template = {
           ...lines.map((l) => ({ ...l, party_name: supplier?.name ?? null })),
           credit(ADVANCES_TO_SUPPLIERS, totalCents, "16.advance", partyExtras(supplier)),
         ],
-        { source_document: str(v.reference), attachments: attachmentsOf(v.receipt) },
+        { source_document: str(v.reference), attachments: attachmentsOf(v.receipt), unsupported: !v.receipt },
       ),
     );
   },
@@ -327,7 +320,7 @@ export const personalFundPurchase: Template = {
     { name: "supplier", label: "Store / supplier", type: "text", required: true },
     { name: "reference", label: "Receipt number", type: "text" },
     linesField,
-    { name: "receipt", label: "Receipt / owner's report", type: "attachment", required: true },
+    { name: "receipt", label: "Receipt / owner's report", type: "attachment", help: "Optional. Without it the entry is flagged \"No receipt\" for the approver" },
   ],
   build(v, ctx) {
     const errors: string[] = [];
@@ -343,7 +336,7 @@ export const personalFundPurchase: Template = {
         17,
         `Bought with personal funds (${person?.name.replace("Reimbursements Payable – ", "") ?? "owner"}) at ${supplier}`,
         [...lines.map((l) => ({ ...l, party_name: supplier })), credit(str(v.person), totalCents, "17.reimbursement")],
-        { source_document: str(v.reference) || null, attachments: attachmentsOf(v.receipt) },
+        { source_document: str(v.reference) || null, attachments: attachmentsOf(v.receipt), unsupported: !v.receipt },
       ),
     );
   },
@@ -421,7 +414,7 @@ export const smallItem: Template = {
     },
     { name: "paidFrom", label: "Paid from / charged to", type: "account", filter: "payFromOrCard", required: true, showIf: { field: "paidBy", values: ["account"] } },
     { name: "supplier", label: "Supplier", type: "party", partyType: "Supplier", required: true, showIf: { field: "paidBy", values: ["credit"] } },
-    { name: "receipt", label: "Receipt photo", type: "attachment", required: true },
+    { name: "receipt", label: "Receipt photo", type: "attachment", help: "Optional. Without it the entry is flagged \"No receipt\" for the approver" },
   ],
   build(v, ctx) {
     const errors: string[] = [];
@@ -442,7 +435,7 @@ export const smallItem: Template = {
           debit(SMALLWARES, amount, "30.smallwares", { profit_center: linePc(ctx, v.profitCenter), memo: str(v.description) }),
           onCredit ? credit(AP, amount, "30.ap", partyExtras(supplier)) : paidLine(ctx, str(v.paidFrom), amount, "30.paid", null, str(v.description)),
         ],
-        { attachments: attachmentsOf(v.receipt) },
+        { attachments: attachmentsOf(v.receipt), unsupported: !v.receipt },
       ),
     );
   },

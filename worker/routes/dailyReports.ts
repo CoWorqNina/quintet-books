@@ -70,7 +70,8 @@ dailyReports.post("/", async (c) => {
   const report = {
     business_date: input.businessDate,
     profit_center: input.profitCenter,
-    pos: { ...input.pos, discountAccount: input.discountAccount },
+    // Net and gross are worked out from the payment types, not typed.
+    pos: { ...input.pos, net: result.figures.netSalesCents / 100, gross: result.figures.grossSalesCents / 100, discountAccount: input.discountAccount },
     drawer: { ...input.drawer, cashIns: input.cashIns, ...result.figures },
     paid_outs: input.paidOuts,
     food_charges: input.foodCharges,

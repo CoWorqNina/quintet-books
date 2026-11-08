@@ -33,7 +33,7 @@ export const employeeAdvance: Template = {
     employeeField,
     { name: "amount", label: "Amount", type: "money", required: true },
     { name: "paidFrom", label: "Paid from", type: "account", filter: "payFrom", required: true },
-    { name: "proof", label: "Signed acknowledgment", type: "attachment", required: true },
+    { name: "proof", label: "Signed CA form", type: "attachment", help: "Optional" },
   ],
   build(v, ctx) {
     const errors: string[] = [];

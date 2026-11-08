@@ -73,6 +73,9 @@ export interface DailyReportInput {
 }
 
 export interface DailyReportFigures {
+  /** Net sales = total of the payment types; gross = net + refunds + discounts. */
+  netSalesCents: number;
+  grossSalesCents: number;
   paidOutCents: number;
   cashInCents: number;
   expectedCashCents: number;
@@ -101,11 +104,13 @@ export function buildDailyReport(
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) errors.push("Enter the business date.");
   if (!input.attachments.length) errors.push("Attach photos of the POS slips and the handwritten cash report.");
 
+  // Cashiers enter what was collected per payment type; net sales is their total and gross
+  // adds back refunds and discounts, so nothing has to be cross-checked by hand.
   const pos = {
-    gross: c(input.pos.gross),
+    gross: 0,
     refunds: c(input.pos.refunds),
     discounts: c(input.pos.discounts),
-    net: c(input.pos.net),
+    net: 0,
     cash: c(input.pos.cash),
     card: c(input.pos.card),
     gcash: c(input.pos.gcash),
@@ -113,18 +118,9 @@ export function buildDailyReport(
     foodpanda: c(input.pos.foodpanda),
     foodCharges: c(input.pos.foodCharges),
   };
+  pos.net = pos.cash + pos.card + pos.gcash + pos.grab + pos.foodpanda + pos.foodCharges;
+  pos.gross = pos.net + pos.refunds + pos.discounts;
   if (Object.values(pos).some((v) => Number.isNaN(v) || v < 0)) errors.push("POS amounts must be numbers of zero or more.");
-
-  if (pos.gross - pos.refunds - pos.discounts !== pos.net) {
-    errors.push(
-      `POS figures don't add up: gross ${formatPeso(pos.gross)} − refunds ${formatPeso(pos.refunds)} − discounts ` +
-        `${formatPeso(pos.discounts)} should equal net sales ${formatPeso(pos.net)}.`,
-    );
-  }
-  const channelTotal = pos.cash + pos.card + pos.gcash + pos.grab + pos.foodpanda + pos.foodCharges;
-  if (channelTotal !== pos.net) {
-    errors.push(`Payment channels add up to ${formatPeso(channelTotal)} but net sales is ${formatPeso(pos.net)}.`);
-  }
   if (pos.discounts > 0 && !input.discountAccount) errors.push("Choose whether the discounts are SC/PWD or Promo.");
   if (input.discountAccount && !(input.discountAccount === ACCOUNTS.discountScPwd || input.discountAccount === ACCOUNTS.discountPromo)) {
     errors.push("Discounts go to SC/PWD (4181) or Promo (4182).");
@@ -260,12 +256,8 @@ export function buildDailyReport(
           }
         }
       }
-      let unsupported = false;
-      if (!p.receipt) {
-        if (amount > NO_RECEIPT_LIMIT_CENTS) errors.push(`Paid-out ${n} (${label}): over ₱300 needs a receipt photo.`);
-        else if (!p.noReceiptApproved) errors.push(`Paid-out ${n} (${label}): attach the receipt, or tick that the Supervisor approved it without one.`);
-        else unsupported = true;
-      }
+      // A receipt photo is optional; without one the expense is flagged "no receipt" for the approver.
+      const unsupported = !p.receipt;
       entries.push(
         finishEntry({
           ...base,
@@ -289,7 +281,6 @@ export function buildDailyReport(
       );
     } else if (p.kind === "advance") {
       if (!p.employeeId) errors.push(`Paid-out ${n} (${label}): choose the employee who got the cash advance.`);
-      if (!p.receipt) errors.push(`Paid-out ${n} (${label}): attach the signed acknowledgment.`);
       entries.push(
         finishEntry({
           ...base,
@@ -343,7 +334,7 @@ export function buildDailyReport(
   });
 
   return {
-    figures: { paidOutCents, cashInCents, expectedCashCents, overShortCents, pettyCashTopUpCents },
+    figures: { netSalesCents: pos.net, grossSalesCents: pos.gross, paidOutCents, cashInCents, expectedCashCents, overShortCents, pettyCashTopUpCents },
     entries: entries.filter((e): e is EntryDraft => e !== null),
     errors,
     warnings,
