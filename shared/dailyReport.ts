@@ -16,7 +16,8 @@ export type DailyProfitCenter = "GGC" | "The Nest";
 
 export interface PaidOut {
   /** cashout: someone sends money to the store's GCash and takes the same amount in cash from the drawer. */
-  kind: "expense" | "advance" | "cashout" | "unclassified";
+  /** cardRefund: a sale paid by card, refunded to the customer in cash from the drawer. */
+  kind: "expense" | "advance" | "cashout" | "cardRefund" | "unclassified";
   description: string;
   amount: number;
   accountCode?: string; // expense only
@@ -284,6 +285,20 @@ export function buildDailyReport(
               memo: label,
             }),
             credit(cash.pettyCash, amount, "26.petty_cash"),
+          ],
+        }),
+      );
+    } else if (p.kind === "cardRefund") {
+      // The card sale stays as it was; the cash handed back is a refund (Sales Refunds).
+      entries.push(
+        finishEntry({
+          ...base,
+          transaction_type: 1,
+          description: label ? `Card sale refunded in cash: ${label}` : "Card sale refunded in cash",
+          attachments: p.receipt ? [p.receipt] : [],
+          lines: [
+            debit(ACCOUNTS.salesRefunds, amount, "refund.refunds", { ...tagged, memo: label || "Card refund paid in cash" }),
+            credit(cash.pettyCash, amount, "refund.cash", { memo: label || "Card refund paid in cash" }),
           ],
         }),
       );

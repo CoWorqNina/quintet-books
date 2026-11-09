@@ -88,7 +88,7 @@ export function incomeLine(a: Account | undefined, code: string): LineDef {
   const name = a?.name ?? code;
   const line = a?.statementLine || name;
   const type = a?.type ?? "";
-  if (type === "Contra-Revenue") return { section: "discounts", group: "", label: "Less: Sales Discounts", order: code };
+  if (type === "Contra-Revenue") return { section: "discounts", group: "", label: "Less: Sales Discounts & Refunds", order: code };
   if (type === "Revenue" || (!a && code.startsWith("4"))) return { section: "revenue", group: "", label: line, order: code };
   if (type === "COGS" || (!a && code.startsWith("5"))) {
     if (code === "5199") return { section: "cogs", group: "~", label: "Inventory Adjustment (from month-end count)", order: "9" + code };

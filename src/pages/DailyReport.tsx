@@ -178,6 +178,7 @@ export default function DailyReport({ user }: { user: AppUser }) {
                     <option value="expense">Expense / purchase</option>
                     <option value="advance">Employee cash advance</option>
                     <option value="cashout">Cash out (sent to our GCash, cash taken from the drawer)</option>
+                    <option value="cardRefund">Card refund paid in cash (paid by card, refunded from the drawer)</option>
                     <option value="unclassified">Not sure (classify later)</option>
                   </select>
                 </label>
@@ -232,7 +233,7 @@ export default function DailyReport({ user }: { user: AppUser }) {
                   value={p.receipt ? [p.receipt] : []}
                   onChange={(v) => setPaidOut(i, { receipt: v[0] ?? null })}
                   label={
-                    p.kind === "advance" ? "Attach signed CA form (optional)" : p.kind === "cashout" ? "Attach GCash screenshot (optional)" : "Attach receipt (optional)"
+                    p.kind === "advance" ? "Attach signed CA form (optional)" : p.kind === "cashout" ? "Attach GCash screenshot (optional)" : p.kind === "cardRefund" ? "Attach refund slip (optional)" : "Attach receipt (optional)"
                   }
                 />
                 <button type="button" className="link danger" onClick={() => setPaidOuts(paidOuts.filter((_, j) => j !== i))}>

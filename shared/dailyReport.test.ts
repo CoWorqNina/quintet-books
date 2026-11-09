@@ -147,6 +147,17 @@ describe("buildDailyReport", () => {
     expect(r.figures.paidOutCents).toBe(buildDailyReport(oct29(), accounts).figures.paidOutCents + 500_00);
   });
 
+  it("a card sale refunded in cash: Sales Refunds up, drawer cash down", () => {
+    const input = oct29();
+    input.paidOuts.push({ kind: "cardRefund", description: "Order 1043, wrong flavor", amount: 285 });
+    const r = buildDailyReport(input, accounts);
+    const e = r.entries.find((x) => x.description === "Card sale refunded in cash: Order 1043, wrong flavor")!;
+    expect(e.lines.map((l) => [l.account_code, l.debitCents, l.creditCents, l.profit_center ?? null])).toEqual([
+      ["4183", 285_00, 0, "GGC"],
+      ["1120", 0, 285_00, null],
+    ]);
+  });
+
   it("uses The Nest's own cash and GCash accounts", () => {
     const input = oct29();
     input.profitCenter = "The Nest";

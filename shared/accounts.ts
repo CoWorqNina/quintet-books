@@ -43,6 +43,7 @@ export const ACCOUNTS = {
   popupGcash: "4162",
   popupCard: "4163",
   salesStaffCharges: "4170",
+  salesRefunds: "4183",
   discountScPwd: "4181",
   discountPromo: "4182",
   receivableShortages: "1241",

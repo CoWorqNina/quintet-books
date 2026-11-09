@@ -360,6 +360,24 @@
   "description": null
  },
  {
+  "id": "rec4183",
+  "code": "4183",
+  "name": "Sales Refunds",
+  "type": "Contra-Revenue",
+  "normalBalance": "Dr",
+  "book": "Store",
+  "profitCenterRule": "GGC or The Nest (per line)",
+  "subLedger": null,
+  "cashFlowGroup": "Operating",
+  "statement": "Income Statement",
+  "statementLine": "Sales Discounts",
+  "parentCode": "4180",
+  "isHeader": false,
+  "isCashAccount": false,
+  "active": true,
+  "description": null
+ },
+ {
   "id": "rec5130",
   "code": "5130",
   "name": "Raw Chicken",
