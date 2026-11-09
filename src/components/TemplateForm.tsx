@@ -1,4 +1,4 @@
-import { accountMatches } from "../../shared/accounts";
+import { accountMatches, needsQuantity } from "../../shared/accounts";
 import { todayManila } from "../lib/data";
 import type { Attachment } from "../../shared/entries";
 import { formatPeso, sumCents, toCents } from "../../shared/money";
@@ -217,7 +217,7 @@ function RowsField({
           <div key={i} className="row-card">
             <div className="grid4">
               {visibleFields(field.columns ?? [], row, ctx)
-                .filter((c) => !(c.help === "Ingredients" && !(account?.type === "COGS" && account.code !== "5199")))
+                .filter((c) => !(c.help === "Ingredients" && !(account && needsQuantity(account))))
                 .map((c) => (
                   <label key={c.name}>
                     {c.label}
