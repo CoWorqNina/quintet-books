@@ -158,8 +158,8 @@ describe("inventory by category", () => {
       { food: 0, supplies: 0, categories: { "1321": 25860_00, "1327": 3000_00 } },
     )!;
     expect(g.details).toEqual([
-      { label: "Raw – Chicken used", cents: -21860_00 },
-      { label: "Oil: count is more than the books", cents: 200_00 },
+      { label: "Raw – Chicken: less on hand than in the books", cents: -21860_00 },
+      { label: "Oil: more on hand than in the books", cents: 200_00 },
     ]);
     expect(g.entry.lines.map((l) => [l.account_code, l.debitCents, l.creditCents, l.profit_center])).toEqual([
       ["5130", 21860_00, 0, "GGC"],

@@ -280,7 +280,7 @@ function Inventory({ period, user }: { period: string; user: AppUser }) {
       <p className="muted">
         Required before the month can close: count what's on hand at month-end at every location that holds stock, then generate the
         adjustment and have it approved. Count item by item and pick each item's category; raw ingredients at the latest purchase price,
-        items made in-house at the transfer price. What was bought but isn't on the shelf becomes that category's cost of sales.
+        items made in-house at the transfer price. Purchases are expensed when bought; the count then moves each inventory category to what's on hand, adding to or taking off cost of sales.
       </p>
       {error && <p className="error">{error}</p>}
       {data?.locations.map((l) => <CountForm key={`${period}${l.book}${l.pc}`} period={period} location={l} user={user} onSaved={reload} />)}

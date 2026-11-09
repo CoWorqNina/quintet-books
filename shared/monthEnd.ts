@@ -281,10 +281,11 @@ export interface InventoryLedger {
 /**
  * Inventory adjustment for one book and profit center.
  *
- * Inventory categories (chicken, fries, sauces…): purchases went into the category's inventory
- * account, so what was used is the books' balance less the count's value for that category; it
- * moves to the category's cost of sales. A count above the books moves back the other way (and
- * usually means a purchase was missed or put in the wrong category).
+ * Inventory categories (chicken, fries, sauces…): purchases are expensed to the category's cost
+ * of sales when bought, so each inventory category still holds last month's count. This month's
+ * count replaces it: stock that went down adds to cost of sales, stock that went up comes off it.
+ * (Purchases put straight into an inventory category, as in early Nov 2026, are settled the same
+ * way, since the category's balance is compared with the count.)
  *
  * Other food (counted only) and cleaning supplies: per item, this count against the last count,
  * between 1300 Inventory and 5199 Inventory Adjustment, or 1310 Supplies and 6610. Any gap
@@ -305,11 +306,11 @@ export function inventoryAdjustment(
     const counted = count.filter((l) => categoryOfCountLine(l.account)?.code === cat.code).reduce((s, l) => s + countValue(l), 0);
     const used = (ledger.categories[cat.code] ?? 0) - counted;
     if (!used) continue;
-    details.push({ label: used > 0 ? `${cat.name} used` : `${cat.name}: count is more than the books`, cents: -used });
+    details.push({ label: used > 0 ? `${cat.name}: less on hand than in the books` : `${cat.name}: more on hand than in the books`, cents: -used });
     lines.push(
       used > 0
-        ? debit(cat.cogs, used, "gen.cogs", { profit_center: pc, memo: `${cat.name} used` })
-        : credit(cat.cogs, -used, "gen.cogs", { profit_center: pc, memo: `${cat.name}: count above the books` }),
+        ? debit(cat.cogs, used, "gen.cogs", { profit_center: pc, memo: `${cat.name}: inventory down to the count` })
+        : credit(cat.cogs, -used, "gen.cogs", { profit_center: pc, memo: `${cat.name}: inventory up to the count` }),
       used > 0
         ? credit(cat.code, used, "gen.inventory", { party_name: cat.name, profit_center: pc })
         : debit(cat.code, -used, "gen.inventory", { party_name: cat.name, profit_center: pc }),

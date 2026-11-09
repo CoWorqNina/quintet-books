@@ -1,4 +1,4 @@
-import { isInventoriedCogs, isInventoryCategory } from "./inventory";
+import { isInventoryCategory } from "./inventory";
 import type { Account, Book, ProfitCenter } from "./types";
 
 // Fixed accounts the Section 7 templates post to, per profit center. The Nest keeps its own
@@ -64,15 +64,19 @@ export const ACCOUNTS = {
 export const DISCOUNT_ACCOUNTS = [ACCOUNTS.discountScPwd, ACCOUNTS.discountPromo] as const;
 
 /**
- * Accounts a purchase line ("expense line") may use: an inventory category (chicken, fries,
- * sauces…), or a postable COGS or operating expense account. COGS accounts that now have an
- * inventory category are reached only through the month-end count, never bought into directly.
+ * Accounts a purchase line ("expense line") may use: a postable COGS or operating expense
+ * account. Ingredients are expensed to their cost of sales account when bought (Raw Chicken,
+ * Fries, Sauces…); the month-end count then adjusts each inventory category to what's on hand.
+ * Inventory Adjustment and the merged Marinate account aren't picked by hand.
  */
 export function isExpenseAccount(a: Account): boolean {
   if (!a.active || a.isHeader) return false;
-  if (isInventoryCategory(a.code)) return true;
-  return (a.type === "COGS" && !isInventoriedCogs(a.code)) || a.type === "Operating Expense";
+  if (a.code === ACCOUNTS.inventoryAdjustment || a.code === MERGED_MARINATE) return false;
+  return a.type === "COGS" || a.type === "Operating Expense";
 }
+
+/** 5120 Marinate was merged into 5110 Breading & Marinate. */
+const MERGED_MARINATE = "5120";
 
 /** Ingredient purchases (inventory categories and COGS, except Inventory Adjustment) carry quantity, unit and unit price. */
 export function needsQuantity(a: Account): boolean {

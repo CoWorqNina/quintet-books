@@ -87,11 +87,11 @@ describe("cash and bank templates", () => {
 });
 
 describe("purchase templates", () => {
-  const chicken = { account: "1321", description: "Wings", quantity: 20, unit: "kg", unitPrice: 210, amount: 4200 };
-  const oil = { account: "1327", description: "Oil", quantity: 2, unit: "tin", unitPrice: 1450, amount: 2900 };
+  const chicken = { account: "5130", description: "Wings", quantity: 20, unit: "kg", unitPrice: 210, amount: 4200 };
+  const oil = { account: "5150", description: "Oil", quantity: 2, unit: "tin", unitPrice: 1450, amount: 2900 };
 
   it("#11 petty cash expense rules", () => {
-    expect(build(11, { date: "2026-11-03", description: "Chicken", lines: [{ account: "1321", amount: 500 }], receipt: photo }).errors).toContain(
+    expect(build(11, { date: "2026-11-03", description: "Chicken", lines: [{ account: "5130", amount: 500 }], receipt: photo }).errors).toContain(
       "Line 1: ingredients need quantity, unit and unit price.",
     );
     const ok = build(11, { date: "2026-11-03", description: "Tissue", lines: [{ account: "6610", amount: 80 }], noReceiptApproved: true });
@@ -109,8 +109,8 @@ describe("purchase templates", () => {
     });
     expect(r.errors).toEqual([]);
     expect(lines(r)).toEqual([
-      ["1321", 4200_00, 0],
-      ["1327", 2900_00, 0],
+      ["5130", 4200_00, 0],
+      ["5150", 2900_00, 0],
       ["1140", 0, 7100_00],
     ]);
     expect(r.entries[0].lines[1]).toMatchObject({ profit_center: "The Nest", quantity: 2, unit: "tin", unit_price: 1450, party_name: "Davao Poultry" });
@@ -124,12 +124,17 @@ describe("purchase templates", () => {
     expect(r.errors).toEqual([]);
     expect(r.entries[0].description).toBe("Purchases from 2 suppliers: Davao Poultry, Agdao Market");
     expect(r.entries[0].lines.map((l) => [l.account_code, l.party_name, l.debitCents, l.creditCents])).toEqual([
-      ["1321", "Davao Poultry", 4200_00, 0],
-      ["1327", "Agdao Market", 2900_00, 0],
+      ["5130", "Davao Poultry", 4200_00, 0],
+      ["5150", "Agdao Market", 2900_00, 0],
       ["1110", undefined, 0, 7100_00],
     ]);
     // a line with no supplier, and none above
     expect(build(12, { date: "2026-11-09", paidFrom: "1110", lines: [chicken] }).errors).toContain("Line 1: choose the supplier (on the line, or above for all lines).");
+  });
+
+  it("purchases are expensed to cost of sales; inventory categories are only for the month-end count", () => {
+    expect(build(12, { date: "2026-11-09", supplier: "recSup", paidFrom: "1110", lines: [{ ...chicken, account: "1321" }] }).errors.join()).toMatch(/can't be used here/);
+    expect(build(12, { date: "2026-11-09", supplier: "recSup", paidFrom: "1110", lines: [{ ...chicken, account: "5199" }] }).errors.join()).toMatch(/can't be used here/);
   });
 
   it("#12 refuses suppliers waiting for approval", () => {
@@ -273,7 +278,7 @@ describe("purchase templates", () => {
       ["1150", 0, 1000_00],
     ]);
     expect(lines(build(16, { date: "2026-11-04", supplier: "recSup", reference: "DR1", receipt: photo, lines: [{ ...chicken, amount: 1000, quantity: 5, unitPrice: 200 }] }))).toEqual([
-      ["1321", 1000_00, 0],
+      ["5130", 1000_00, 0],
       ["1260", 0, 1000_00],
     ]);
     const p = build(17, { date: "2026-11-04", person: "2113", supplier: "S&R", receipt: photo, lines: [{ account: "6610", amount: 1500 }] });
@@ -373,18 +378,18 @@ describe("Commissary templates (both books)", () => {
   });
 
   it("#19 Store pays a Commissary cost: both books move", () => {
-    const r = build(19, { date: "2026-11-05", description: "LPG for Commissary", paidFrom: "1120", receipt: photo, lines: [{ account: "1328", amount: 1100, quantity: 1, unit: "tank", unitPrice: 1100 }] }, c);
+    const r = build(19, { date: "2026-11-05", description: "LPG for Commissary", paidFrom: "1120", receipt: photo, lines: [{ account: "5170", amount: 1100, quantity: 1, unit: "tank", unitPrice: 1100 }] }, c);
     expect(r.errors).toEqual([]);
     expect(lines(r, 0)).toEqual([
       ["2180", 1100_00, 0],
       ["1120", 0, 1100_00],
     ]);
     expect(lines(r, 1)).toEqual([
-      ["1328", 1100_00, 0],
+      ["5170", 1100_00, 0],
       ["1280", 0, 1100_00],
     ]);
     expect(r.entries[1].lines[0].profit_center).toBe("GGC");
-    expect(build(19, { date: "2026-11-05", description: "x", paidFrom: "1145", receipt: photo, lines: [{ account: "1328", amount: 1 }] }, c).errors.join()).toMatch(
+    expect(build(19, { date: "2026-11-05", description: "x", paidFrom: "1145", receipt: photo, lines: [{ account: "5170", amount: 1 }] }, c).errors.join()).toMatch(
       /Store paid from/,
     );
   });

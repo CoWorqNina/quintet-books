@@ -214,7 +214,7 @@ export function partyExtras(p: Party | undefined) {
 
 /** Standard columns for "expense line" rows (purchases, petty cash, Commissary costs). */
 export const EXPENSE_COLUMNS: Field[] = [
-  { name: "account", label: "Inventory / expense line", type: "account", filter: "expense", required: true },
+  { name: "account", label: "Expense line", type: "account", filter: "expense", required: true },
   { name: "description", label: "Item", type: "text" },
   { name: "quantity", label: "Qty", type: "number", help: "Ingredients" },
   { name: "unit", label: "Unit", type: "text", help: "Ingredients" },
