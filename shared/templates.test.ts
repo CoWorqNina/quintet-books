@@ -12,6 +12,7 @@ const party = (id: string, name: string, type: Party["type"], approved = true): 
 });
 const parties = [
   party("recSup", "Davao Poultry", "Supplier"),
+  party("recMkt", "Agdao Market", "Supplier"),
   party("recNew", "New Supplier Co", "Supplier", false),
   party("recAna", "Ana", "Employee"),
   party("recUB", "Union Bank", "Lender"),
@@ -113,6 +114,22 @@ describe("purchase templates", () => {
       ["1140", 0, 7100_00],
     ]);
     expect(r.entries[0].lines[1]).toMatchObject({ profit_center: "The Nest", quantity: 2, unit: "tin", unit_price: 1450, party_name: "Davao Poultry" });
+  });
+
+  it("#12 one entry for a market run with several suppliers, each line tagged to its supplier", () => {
+    const r = build(12, {
+      date: "2026-11-09", paidFrom: "1110", receipt: photo,
+      lines: [{ ...chicken, supplier: "recSup" }, { ...oil, supplier: "recMkt" }],
+    });
+    expect(r.errors).toEqual([]);
+    expect(r.entries[0].description).toBe("Purchases from 2 suppliers: Davao Poultry, Agdao Market");
+    expect(r.entries[0].lines.map((l) => [l.account_code, l.party_name, l.debitCents, l.creditCents])).toEqual([
+      ["1321", "Davao Poultry", 4200_00, 0],
+      ["1327", "Agdao Market", 2900_00, 0],
+      ["1110", undefined, 0, 7100_00],
+    ]);
+    // a line with no supplier, and none above
+    expect(build(12, { date: "2026-11-09", paidFrom: "1110", lines: [chicken] }).errors).toContain("Line 1: choose the supplier (on the line, or above for all lines).");
   });
 
   it("#12 refuses suppliers waiting for approval", () => {

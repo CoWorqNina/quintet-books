@@ -88,6 +88,12 @@ export const pettyCashExpense: Template = {
   },
 };
 
+/** Item lines that can each name their own supplier (one market run, several suppliers). */
+const multiSupplierLines: Field = {
+  ...linesField,
+  columns: [{ name: "supplier", label: "Supplier", type: "party", partyType: "Supplier", help: "Only if different from the supplier above" }, ...EXPENSE_COLUMNS],
+};
+
 export const purchasePaid: Template = {
   number: 12,
   name: "Purchase – Paid",
@@ -97,7 +103,11 @@ export const purchasePaid: Template = {
   batchApproval: true,
   fields: [
     dateField,
-    supplierField,
+    {
+      ...supplierField,
+      required: false,
+      help: "For a purchase from one supplier. Bought from several? Leave this blank and choose the supplier on each item line",
+    },
     {
       name: "paidFrom",
       label: "Paid from / charged to",
@@ -106,28 +116,39 @@ export const purchasePaid: Template = {
       required: true,
       help: "A bank or e-wallet, cash on hand for deposit, or an owner's credit card or SPayLater",
     },
-    { name: "reference", label: "Receipt / OR number", type: "text", required: true },
-    linesField,
-    { name: "receipt", label: "Receipt photo", type: "attachment", help: "Optional. Without it the entry is flagged \"No receipt\" for the approver" },
+    { name: "reference", label: "Receipt / OR number(s)", type: "text" },
+    multiSupplierLines,
+    { name: "receipt", label: "Receipt photo(s)", type: "attachment", help: "Optional. Without it the entry is flagged \"No receipt\" for the approver" },
   ],
   build(v, ctx) {
     const errors: string[] = [];
     requireFields(this.fields, v, ctx, errors);
-    const supplier = checkParty(str(v.supplier), "Supplier", "Supplier", ctx, errors);
     checkAccount(str(v.paidFrom), "bankOrCard", "Paid from", ctx, errors);
-    const { lines, totalCents } = expenseLines(rowsOf(v.lines), ctx, errors, "12.expense");
+    const rows = rowsOf(v.lines);
+    // Each line's supplier: its own, else the one above.
+    const suppliers = rows.map((r, i) => {
+      const id = str(r.supplier) || str(v.supplier);
+      if (!id) {
+        errors.push(`Line ${i + 1}: choose the supplier (on the line, or above for all lines).`);
+        return undefined;
+      }
+      return checkParty(id, "Supplier", str(r.supplier) ? `Line ${i + 1}: Supplier` : "Supplier", ctx, errors);
+    });
+    const { lines, totalCents } = expenseLines(rows, ctx, errors, "12.expense");
+    const names = [...new Set(suppliers.filter((x) => x).map((x) => x!.name))];
+    const one = names.length === 1 ? names[0] : null;
     return result(
-      errors,
+      [...new Set(errors)],
       makeEntry(
         ctx,
         v,
         12,
-        `Purchase from ${supplier?.name ?? "supplier"}`,
+        names.length > 1 ? `Purchases from ${names.length} suppliers: ${names.join(", ")}` : `Purchase from ${one ?? "supplier"}`,
         [
-          ...lines.map((l) => ({ ...l, party_name: supplier?.name ?? null })),
-          paidLine(ctx, str(v.paidFrom), totalCents, "12.paid", supplier?.name ?? null, str(v.reference) || null),
+          ...lines.map((l, i) => ({ ...l, ...partyExtras(suppliers[i]) })),
+          paidLine(ctx, str(v.paidFrom), totalCents, "12.paid", one ?? (names.length ? "Several suppliers" : null), str(v.reference) || null),
         ],
-        { source_document: str(v.reference), attachments: attachmentsOf(v.receipt), unsupported: !v.receipt },
+        { source_document: str(v.reference) || null, attachments: attachmentsOf(v.receipt), unsupported: !v.receipt },
       ),
     );
   },
