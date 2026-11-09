@@ -103,7 +103,7 @@ export const purchasePaid: Template = {
       type: "account",
       filter: "bankOrCard",
       required: true,
-      help: "A bank or e-wallet, or an owner's credit card or SPayLater",
+      help: "A bank or e-wallet, cash on hand for deposit, or an owner's credit card or SPayLater",
     },
     { name: "reference", label: "Receipt / OR number", type: "text", required: true },
     linesField,
@@ -201,7 +201,7 @@ export const supplierPayment: Template = {
       type: "account",
       filter: "bankOrCard",
       required: true,
-      help: "A bank or e-wallet, or an owner's credit card or SPayLater",
+      help: "A bank or e-wallet, cash on hand for deposit, or an owner's credit card or SPayLater",
     },
     transferFeeField,
     otherSourcesField,
@@ -247,7 +247,7 @@ export const supplierAdvance: Template = {
     dateField,
     supplierField,
     { name: "amount", label: "Amount paid in advance", type: "money", required: true },
-    { name: "paidFrom", label: "Paid from", type: "account", filter: "bank", required: true },
+    { name: "paidFrom", label: "Paid from", type: "account", filter: "payment", required: true, help: "A bank or e-wallet, or cash on hand for deposit" },
     { name: "reference", label: "Reference", type: "text", required: true },
     { name: "proof", label: "Payment proof", type: "attachment" },
   ],
@@ -255,7 +255,7 @@ export const supplierAdvance: Template = {
     const errors: string[] = [];
     requireFields(this.fields, v, ctx, errors);
     const supplier = checkParty(str(v.supplier), "Supplier", "Supplier", ctx, errors);
-    checkAccount(str(v.paidFrom), "bank", "Paid from", ctx, errors);
+    checkAccount(str(v.paidFrom), "payment", "Paid from", ctx, errors);
     const amount = cents(v.amount);
     return result(
       errors,
@@ -362,7 +362,7 @@ export const reimbursementPaid: Template = {
     dateField,
     { name: "person", label: "Card, SPayLater or person paid", type: "account", filter: "payable", required: true },
     payableBills,
-    { name: "paidFrom", label: "Paid from", type: "account", filter: "bank", required: true },
+    { name: "paidFrom", label: "Paid from", type: "account", filter: "payment", required: true, help: "A bank or e-wallet, or cash on hand for deposit" },
     transferFeeField,
     otherSourcesField,
     { name: "reference", label: "Transfer reference", type: "text" },
@@ -372,7 +372,7 @@ export const reimbursementPaid: Template = {
     const errors: string[] = [];
     requireFields(this.fields, v, ctx, errors);
     const payable = checkAccount(str(v.person), "payable", "Card, SPayLater or person", ctx, errors);
-    const bank = checkAccount(str(v.paidFrom), "bank", "Paid from", ctx, errors);
+    const bank = checkAccount(str(v.paidFrom), "payment", "Paid from", ctx, errors);
     const { lines, totalCents, labels } = settleLines(payableBills, v, ctx, errors, "18.reimbursement");
     const fee = transferFeeLines(v, ctx, "18.fee", errors, bank);
     const split = otherSources(v, ctx, totalCents, "18.paid", errors, str(v.paidFrom));

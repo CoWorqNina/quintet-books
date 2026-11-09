@@ -366,7 +366,7 @@ export const otherSourcesField: Field = {
   type: "rows",
   help: "Only if part of this payment came from another bank or e-wallet. The account above pays the rest",
   columns: [
-    { name: "account", label: "Bank / e-wallet", type: "account", filter: "bank", required: true },
+    { name: "account", label: "Bank, e-wallet or cash", type: "account", filter: "payment", required: true },
     { name: "amount", label: "Amount from this account", type: "money", required: true },
     { name: "fee", label: "Its transfer fee", type: "money" },
   ],
@@ -387,7 +387,7 @@ export function otherSources(v: Values, ctx: TemplateContext, totalCents: number
     const amount = cents(row.amount);
     const fee = cents(row.fee);
     if (!code && !amount) return;
-    checkAccount(code, "bank", n, ctx, errors);
+    checkAccount(code, "payment", n, ctx, errors);
     if (seen.has(code)) errors.push(`${n}: each account appears once (the main "Paid from" account takes the rest).`);
     seen.add(code);
     if (amount <= 0) errors.push(`${n}: enter the amount taken from this account.`);

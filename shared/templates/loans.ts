@@ -126,7 +126,7 @@ export const loanInstallment: Template = {
   fields: [
     dateField,
     { name: "loan", label: "Loan", type: "loan", required: true },
-    { name: "paidFrom", label: "Paid from", type: "account", filter: "bank", required: true },
+    { name: "paidFrom", label: "Paid from", type: "account", filter: "payment", required: true, help: "A bank or e-wallet, or cash on hand for deposit" },
     transferFeeField,
     otherSourcesField,
     { name: "reference", label: "Payment reference", type: "text", required: true },
@@ -135,7 +135,7 @@ export const loanInstallment: Template = {
   build(v, ctx): BuildResult {
     const errors: string[] = [];
     requireFields(this.fields, v, ctx, errors);
-    const bank = checkAccount(str(v.paidFrom), "bank", "Paid from", ctx, errors);
+    const bank = checkAccount(str(v.paidFrom), "payment", "Paid from", ctx, errors);
     const fee = transferFeeLines(v, ctx, "34.fee", errors, bank);
     const loan = ctx.loans?.get(str(v.loan));
     if (str(v.loan) && !loan) errors.push("Choose a loan.");

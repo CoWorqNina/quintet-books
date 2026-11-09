@@ -241,6 +241,11 @@ describe("purchase templates", () => {
       ["1140", 0, 715_00],
     ]);
     expect(withFee.entries[0].lines[1].profit_center).toBe("GGC");
+    // cash on hand for deposit can pay too; petty cash can't
+    const cash = build(44, { date: "2026-11-16", payTo: "Ckylhen", paidFrom: "1110", bills: [{ lineId: 22, amount: 700 }] }, c44);
+    expect(cash.errors).toEqual([]);
+    expect(lines(cash).at(-1)).toEqual(["1110", 0, 700_00]);
+    expect(build(44, { date: "2026-11-16", payTo: "x", paidFrom: "1120", bills: [{ lineId: 22, amount: 700 }] }, c44).errors.join()).toMatch(/can't be used here/);
     // installments are paid in order
     expect(build(44, { date: "2026-11-16", payTo: "Kai", paidFrom: "1140", bills: [{ installmentId: 72, amount: 1874.58 }] }, c44).errors.join()).toMatch(/pay installment 7 before 8/);
   });

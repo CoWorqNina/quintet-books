@@ -46,7 +46,7 @@ export const combinedPayment: Template = {
     dateField,
     { name: "payTo", label: "Paid to", type: "text", required: true, help: "Who received the transfer, e.g. the owner whose cards and card loans this pays" },
     combinedItems,
-    { name: "paidFrom", label: "Paid from", type: "account", filter: "bank", required: true },
+    { name: "paidFrom", label: "Paid from", type: "account", filter: "payment", required: true, help: "A bank or e-wallet, or cash on hand for deposit" },
     transferFeeField,
     otherSourcesField,
     { name: "reference", label: "Transfer reference", type: "text" },
@@ -55,7 +55,7 @@ export const combinedPayment: Template = {
   build(v, ctx): BuildResult {
     const errors: string[] = [];
     requireFields(this.fields, v, ctx, errors);
-    const bank = checkAccount(str(v.paidFrom), "bank", "Paid from", ctx, errors);
+    const bank = checkAccount(str(v.paidFrom), "payment", "Paid from", ctx, errors);
     const fee = transferFeeLines(v, ctx, "44.fee", errors, bank);
     const rows = rowsOf(v.bills);
     // Bills: one line per bill, naming the bill it settles (part payments allowed).

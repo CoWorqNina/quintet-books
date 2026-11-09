@@ -106,6 +106,8 @@ export function cashAccountsFor(pc: ProfitCenter) {
 
 /** Drawer cash; every other active cash account is a bank or e-wallet. */
 export const CASH_ON_HAND = new Set(["1110", "1120", "1156", "1157"]);
+/** Cash on hand – For Deposit (GGC, The Nest): payments can also be made from it. */
+export const CASH_FOR_DEPOSIT = new Set(["1110", "1156"]);
 
 /** Accounts money can be deposited into or paid out to: any active Store bank or e-wallet. */
 export function isBankAccount(a: Account | undefined): a is Account {
@@ -136,7 +138,8 @@ export type AccountFilter =
   | "reimbursement" // Reimbursements Payable per person (2111-2114)
   | "card" // owners' SPayLater and credit cards (2160, 2190)
   | "payable" // a card, SPayLater or reimbursement account (bills paid with #18)
-  | "bankOrCard" // bank, e-wallet, or an owner's card / SPayLater
+  | "payment" // bank, e-wallet, or cash on hand for deposit (paying a bill)
+  | "bankOrCard" // bank, e-wallet, cash for deposit, or an owner's card / SPayLater
   | "payFromOrCard" // payFrom, or an owner's card / SPayLater
   | "ppe" // property & equipment classes
   | "deposit" // refundable deposits
@@ -173,8 +176,10 @@ export function accountMatches(filter: AccountFilter, a: Account | undefined, ct
       return isCardAccount(a);
     case "payable":
       return a.parentCode === REIMBURSEMENTS || isCardAccount(a);
+    case "payment":
+      return (a.isCashAccount && !CASH_ON_HAND.has(a.code)) || CASH_FOR_DEPOSIT.has(a.code);
     case "bankOrCard":
-      return (a.isCashAccount && !CASH_ON_HAND.has(a.code)) || isCardAccount(a);
+      return (a.isCashAccount && !CASH_ON_HAND.has(a.code)) || CASH_FOR_DEPOSIT.has(a.code) || isCardAccount(a);
     case "payFromOrCard":
       return (a.isCashAccount && !CASH_ON_HAND.has(a.code)) || a.code === cash?.pettyCash || isCardAccount(a);
     case "ppe":
