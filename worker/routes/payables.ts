@@ -7,11 +7,10 @@ import { viewsBooks, todayManila } from "../access";
 import { getAccounts } from "../airtable";
 import { dbError, forbidden } from "../db";
 import type { AppContext } from "../env";
-import { loadOpenBills } from "../openBills";
+import { loadOpenBills, OTHER_PAYABLES } from "../openBills";
 import { serviceClient } from "../supabase";
 
 /** Other payables shown with no due date (balance only). */
-const OTHER_PAYABLES = ["2120", "2130", "2135", "2141", "2142", "2143", "2155", "2170"];
 const NOT_LOANS = new Set(["2250", "2260"]); // accrued interest is paid with the installment; owner loans aren't planned
 
 export const payables = new Hono<AppContext>();
@@ -43,9 +42,10 @@ payables.get("/", async (c) => {
     bal.set(k, (bal.get(k) ?? 0) + Math.round(Number(r.credits) * 100) - Math.round(Number(r.debits) * 100));
   }
   const items: PayableItem[] = [];
+  const billAccounts = new Set([...OTHER_PAYABLES, ...loanCodes]);
 
   for (const b of bills) {
-    const kind = kindOf(accounts.get(b.accountCode));
+    const kind = loanCodes.includes(b.accountCode) ? "loan" : kindOf(accounts.get(b.accountCode));
     const isCardLike = kind === "card" || kind === "spaylater" || kind === "reimbursement";
     items.push({
       key: `bill:${b.lineId}`,
@@ -53,7 +53,7 @@ payables.get("/", async (c) => {
       book: b.book,
       accountCode: b.accountCode,
       accountName: name(b.accountCode),
-      payee: kind === "supplier" ? (b.party ?? "Supplier") : name(b.accountCode),
+      payee: kind === "supplier" || (kind === "loan" && b.party) ? (b.party ?? "Supplier") : name(b.accountCode),
       label: billLabel(b),
       date: b.date,
       dueDate: b.dueDate,
@@ -64,7 +64,8 @@ payables.get("/", async (c) => {
           ? { template: 14, values: { supplier: b.partyId, bill: String(b.lineId) } }
           : isCardLike
             ? { template: 18, values: { person: b.accountCode, bill: String(b.lineId) } }
-            : undefined,
+            : // payroll, gov't contributions, accrued expenses, loans with no schedule: #44
+              { template: 44, values: { payTo: b.party ?? name(b.accountCode), items: `bill:${b.lineId}:${(Math.max(0, b.openCents - b.pendingCents) / 100).toFixed(2)}` } },
     });
   }
 
@@ -93,7 +94,8 @@ payables.get("/", async (c) => {
   // Loans with no schedule (on demand) and other payables: balance only.
   for (const [k, cents] of bal) {
     const [book, code] = k.split("|") as ["Store" | "Commissary", string];
-    if (cents <= 0 || cashCodes.includes(code) || scheduled.has(k)) continue;
+    // Accounts ticked bill by bill (payroll, gov't, accrued, loans with no schedule) are in the bills above.
+    if (cents <= 0 || cashCodes.includes(code) || scheduled.has(k) || billAccounts.has(code)) continue;
     const isLoan = loanCodes.includes(code);
     items.push({
       key: `acct:${k}`,

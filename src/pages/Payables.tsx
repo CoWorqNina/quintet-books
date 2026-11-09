@@ -194,7 +194,7 @@ export function Payables({ canPay = true }: { canPay?: boolean }) {
           </table>
         </div>
         <p className="muted small">
-          Card and SPayLater bills are due on the statement date. Payroll, government contributions and loans with no schedule show under "No due date". A
+          Card and SPayLater bills are due on the statement date. Payroll, government contributions, accrued expenses and loans with no schedule show under "No due date"; they can be ticked and paid too. A
           payment waiting for approval is taken off what's left to pay.
         </p>
       </div>
