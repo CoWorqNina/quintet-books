@@ -145,7 +145,13 @@ export const platformPayout: Template = {
       ],
     },
     { name: "receivedIn", label: "Received in", type: "account", filter: "bank", required: true },
-    { name: "gross", label: "Sales cleared (gross, at menu price)", type: "money", required: true },
+    {
+      name: "gross",
+      label: "Sales (gross, before commission)",
+      type: "money",
+      required: true,
+      help: "From the platform's statement. Grab / Foodpanda sales are recorded here, when paid out, not in the daily report",
+    },
     { name: "commission", label: "Commission", type: "money" },
     { name: "deductions", label: "Penalties and adjustments", type: "money" },
     { name: "withholding", label: "Tax withheld", type: "money" },
@@ -155,7 +161,6 @@ export const platformPayout: Template = {
   build(v, ctx) {
     const errors: string[] = [];
     requireFields(this.fields, v, ctx, errors);
-    const cash = cashAccountsFor(ctx.profitCenter);
     const grab = str(v.platform) === "Grab";
     const receiving = str(v.receivedIn);
     checkAccount(receiving, "bank", "Received in", ctx, errors);
@@ -172,13 +177,13 @@ export const platformPayout: Template = {
         ctx,
         v,
         8,
-        `${str(v.platform)} payout, net ${formatPeso(net)}`,
+        `${str(v.platform)} sales received, net ${formatPeso(net)}`,
         [
           debit(receiving, net, "8.received"),
           debit(grab ? ACCOUNTS.commissionGrab : ACCOUNTS.commissionFoodpanda, commission, "8.commission", pc),
           debit(grab ? ACCOUNTS.deductionsGrab : ACCOUNTS.deductionsFoodpanda, deductions, "8.deductions", pc),
           debit(ACCOUNTS.creditableWithholdingTax, withholding, "8.cwt", { party_name: str(v.platform) }),
-          credit(grab ? cash.grabClearing : cash.foodpandaClearing, gross, "8.clearing"),
+          credit(grab ? ACCOUNTS.salesGrab : ACCOUNTS.salesFoodpanda, gross, "8.sales", pc),
         ],
         { source_document: str(v.reference), attachments: attachmentsOf(v.proof) },
       ),

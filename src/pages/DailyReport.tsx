@@ -23,8 +23,6 @@ const POS_FIELDS = [
   ["cash", "Cash"],
   ["card", "Card"],
   ["gcash", "GCash"],
-  ["grab", "Grab"],
-  ["foodpanda", "Foodpanda"],
   ["foodCharges", "Food charges"],
 ] as const;
 
@@ -64,8 +62,6 @@ export default function DailyReport({ user }: { user: AppUser }) {
       cash: +pos.cash || 0,
       card: +pos.card || 0,
       gcash: +pos.gcash || 0,
-      grab: +pos.grab || 0,
-      foodpanda: +pos.foodpanda || 0,
       foodCharges: +pos.foodCharges || 0,
     },
     discountAccount: discountAccount || null,
@@ -132,7 +128,7 @@ export default function DailyReport({ user }: { user: AppUser }) {
       <div className="card">
         <h2>1. POS sales summary</h2>
         <h3>Paid by</h3>
-        <p className="muted small">Enter what the POS shows per payment type. Net and gross sales are worked out for you.</p>
+        <p className="muted small">Enter what the POS shows per payment type. Net and gross sales are worked out for you. Leave out Grab and Foodpanda: their sales are recorded when the platform pays out (#8 Grab / Foodpanda Payout).</p>
         <div className="grid3">
           {POS_FIELDS.map(([k, label]) => (
             <label key={k}>

@@ -45,6 +45,8 @@ describe("cash and bank templates", () => {
     expect(r.errors).toEqual([]);
     expect(isBalanced(r.entries[0])).toBe(true);
     expect(r.entries[0].lines.find((l) => l.account_code === "1140")!.debitCents).toBe(7350_00);
+    // the sales are recorded here, on payout: Sales – Grab, tagged to the profit center
+    expect(r.entries[0].lines.at(-1)).toMatchObject({ account_code: "4140", creditCents: 10000_00, profit_center: "GGC" });
     expect(build(8, { date: "2026-11-07", platform: "Grab", receivedIn: "1140", gross: 100, reference: "x" }).errors).toContain(
       "Weekly platform statement is required.",
     );

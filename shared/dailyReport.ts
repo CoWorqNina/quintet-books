@@ -1,7 +1,9 @@
 // Turns an encoded cashier report (POS sales summary + handwritten cash report) into the day's
-// entries: #1 cash sales, #2 GCash, #3 card, #4 Grab/Foodpanda, #6 staff food charges,
+// entries: #1 cash sales, #2 GCash, #3 card, #6 staff food charges,
 // #11 petty cash expenses, #26 cash advances, #39 unclassified paid-outs and #10 cash-ins.
 // Used by the screen for a live preview and by the server, which rebuilds and checks it.
+// Grab and Foodpanda aren't recorded from the daily report: their sales are recorded when the
+// platform pays out (#8), from the platform's own statement.
 
 import { ACCOUNTS, bookAllowed, cashAccountsFor, isBankAccount, isExpenseAccount, needsQuantity, profitCenterAllowed } from "./accounts";
 import { credit, debit, type Attachment, type EntryDraft, finishEntry, signed } from "./entries";
@@ -53,8 +55,9 @@ export interface DailyReportInput {
     cash: number;
     card: number;
     gcash: number;
-    grab: number;
-    foodpanda: number;
+    /** No longer used: Grab / Foodpanda sales are recorded on payout (#8). Kept for older reports. */
+    grab?: number;
+    foodpanda?: number;
     foodCharges: number;
   };
   discountAccount?: string | null; // 4181 SC/PWD or 4182 Promo; all discounts sit on the cash sales entry
@@ -115,11 +118,12 @@ export function buildDailyReport(
     cash: c(input.pos.cash),
     card: c(input.pos.card),
     gcash: c(input.pos.gcash),
-    grab: c(input.pos.grab),
-    foodpanda: c(input.pos.foodpanda),
+    // Grab / Foodpanda: recorded when the platform pays out (#8), not from the POS.
+    grab: 0,
+    foodpanda: 0,
     foodCharges: c(input.pos.foodCharges),
   };
-  pos.net = pos.cash + pos.card + pos.gcash + pos.grab + pos.foodpanda + pos.foodCharges;
+  pos.net = pos.cash + pos.card + pos.gcash + pos.foodCharges;
   pos.gross = pos.net + pos.refunds + pos.discounts;
   if (Object.values(pos).some((v) => Number.isNaN(v) || v < 0)) errors.push("POS amounts must be numbers of zero or more.");
   if (pos.discounts > 0 && !input.discountAccount) errors.push("Choose whether the discounts are SC/PWD or Promo.");
@@ -171,7 +175,7 @@ export function buildDailyReport(
     }),
   );
 
-  // #2 GCash, #3 card, #4 Grab / Foodpanda
+  // #2 GCash, #3 card
   if (cash.gcash) {
     entries.push(
       finishEntry({
@@ -188,21 +192,6 @@ export function buildDailyReport(
       transaction_type: 3,
       description: `Daily card sales ${date}`,
       lines: [debit(cash.cardClearing, pos.card, "3.clearing"), credit(ACCOUNTS.salesCard, pos.card, "3.sales", tagged)],
-    }),
-    finishEntry({
-      ...base,
-      transaction_type: 4,
-      description: `Daily Grab sales ${date}`,
-      lines: [debit(cash.grabClearing, pos.grab, "4.clearing"), credit(ACCOUNTS.salesGrab, pos.grab, "4.sales", tagged)],
-    }),
-    finishEntry({
-      ...base,
-      transaction_type: 4,
-      description: `Daily Foodpanda sales ${date}`,
-      lines: [
-        debit(cash.foodpandaClearing, pos.foodpanda, "4.clearing"),
-        credit(ACCOUNTS.salesFoodpanda, pos.foodpanda, "4.sales", tagged),
-      ],
     }),
   );
 
