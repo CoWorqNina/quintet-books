@@ -3,8 +3,9 @@ import { HTTPException } from "hono/http-exception";
 import { looksSimilar } from "../../shared/similar";
 import type { Party, Role } from "../../shared/types";
 import { isOwner } from "../access";
-import { clearCache, createRecords, getParties, TABLES, updateRecord } from "../airtable";
-import { badRequest, forbidden } from "../db";
+import { clearCache, createRecords, deleteRecord, getParties, TABLES, updateRecord } from "../airtable";
+import { badRequest, dbError, forbidden } from "../db";
+import { serviceClient } from "../supabase";
 import type { AppContext } from "../env";
 import { logJudgment } from "../judgment";
 
@@ -112,5 +113,79 @@ parties.post("/:id/active", async (c) => {
   const { active } = await c.req.json<{ active: boolean }>();
   await updateRecord(c.env, TABLES.parties, c.req.param("id"), { Active: active });
   clearCache("parties");
+  return c.json({ ok: true });
+});
+
+/** Who may edit or delete a party of this type: Owner records only Owners; the rest Owners and the Accountant. */
+function canManage(role: Role, type: Party["type"]) {
+  return type === "Owner" ? role === "Owner" : role === "Owner" || role === "Accountant";
+}
+
+async function findParty(env: AppContext["Bindings"], id: string) {
+  const party = (await getParties(env)).find((p) => p.id === id);
+  if (!party) throw new HTTPException(404, { message: "Not found." });
+  return party;
+}
+
+// Edit a supplier, employee, lender… Posted entries keep the name they were posted with.
+parties.put("/:id", async (c) => {
+  const user = c.get("user");
+  const party = await findParty(c.env, c.req.param("id"));
+  if (!canManage(user.role, party.type)) forbidden(`Your role can't edit ${party.type.toLowerCase()}s.`);
+  const body = await c.req.json<Partial<NewParty>>();
+  const name = body.name?.trim();
+  if (body.name !== undefined && !name) badRequest("Enter a name.");
+  if (party.type === "Supplier" && body.paymentTerms !== undefined && !body.paymentTerms.trim()) badRequest("Enter the supplier's payment terms.");
+  if (name && name !== party.name) {
+    const clash = (await getParties(c.env)).find((p) => p.id !== party.id && p.type === party.type && p.name.toLowerCase() === name.toLowerCase());
+    if (clash) badRequest(`There's already a ${party.type.toLowerCase()} called ${clash.name}.`);
+  }
+  await updateRecord(c.env, TABLES.parties, party.id, {
+    ...(name ? { Name: name } : {}),
+    ...(body.books ? { Books: body.books.length ? body.books : ["Store"] } : {}),
+    ...(body.profitCenter !== undefined ? { "Profit Center": body.profitCenter || null } : {}),
+    ...(body.contactDetails !== undefined ? { "Contact Details": body.contactDetails.trim() } : {}),
+    ...(body.paymentTerms !== undefined ? { "Payment Terms": body.paymentTerms.trim() } : {}),
+    ...(body.itemsSupplied !== undefined ? { "Items Supplied": body.itemsSupplied.trim() } : {}),
+  });
+  clearCache("parties");
+  return c.json({ ok: true });
+});
+
+/** Where a party is used in the books: entry lines (any status), loans and daily reports. */
+async function usage(env: AppContext["Bindings"], id: string) {
+  const db = serviceClient(env);
+  const [lines, loans, reports] = await Promise.all([
+    db.from("entry_lines").select("entry_id", { count: "exact", head: true }).eq("party_id", id),
+    db.from("loans").select("id", { count: "exact", head: true }).eq("lender_party_id", id),
+    db.from("daily_reports").select("id, drawer, food_charges, paid_outs"),
+  ]);
+  dbError(lines.error);
+  dbError(loans.error);
+  dbError(reports.error);
+  const inReports = (reports.data ?? []).filter((r) => JSON.stringify([r.drawer, r.food_charges, r.paid_outs]).includes(id)).length;
+  return { entryLines: lines.count ?? 0, loans: loans.count ?? 0, dailyReports: inReports };
+}
+
+// Delete for good: only someone never used in the books (otherwise deactivate them).
+parties.delete("/:id", async (c) => {
+  const user = c.get("user");
+  if (!isOwner(user)) forbidden("Only an Owner deletes people and suppliers.");
+  const party = await findParty(c.env, c.req.param("id"));
+  const used = await usage(c.env, party.id);
+  const where = [
+    used.entryLines && `${used.entryLines} entry line${used.entryLines === 1 ? "" : "s"}`,
+    used.loans && `${used.loans} loan${used.loans === 1 ? "" : "s"}`,
+    used.dailyReports && `${used.dailyReports} daily report${used.dailyReports === 1 ? "" : "s"}`,
+  ].filter(Boolean);
+  if (where.length) badRequest(`${party.name} is used in ${where.join(", ")}, so it can't be deleted. Deactivate it instead: it stays in past records but can't be chosen anymore.`);
+  await deleteRecord(c.env, TABLES.parties, party.id);
+  clearCache("parties");
+  await logJudgment(c.env, {
+    category: "Other",
+    description: `Deleted ${party.type.toLowerCase()} ${party.name} (never used in the books).`,
+    decidedBy: user.fullName,
+    recordedBy: user.fullName,
+  });
   return c.json({ ok: true });
 });

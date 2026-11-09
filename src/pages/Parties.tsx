@@ -1,4 +1,4 @@
-import { type FormEvent, useState } from "react";
+import { type FormEvent, Fragment, useState } from "react";
 import type { AppUser, Party } from "../../shared/types";
 import { api, ApiRequestError } from "../lib/api";
 import { useLoad } from "../lib/data";
@@ -53,6 +53,19 @@ export default function Parties({ user }: { user: AppUser }) {
   }
 
   const pending = (data ?? []).filter((p) => p.approvalStatus === "Pending");
+  const [editing, setEditing] = useState<string | null>(null);
+  // Owner records only by Owners; the rest by Owners and the Accountant. Deleting: Owners only.
+  const canEdit = type === "Owner" ? owner : manager;
+
+  async function remove(p: Party) {
+    if (!confirm(`Delete ${p.name} for good? This only works if ${p.name} was never used in the books.`)) return;
+    try {
+      await api(`/parties/${p.id}`, { method: "DELETE" });
+      reload();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Could not delete");
+    }
+  }
 
   return (
     <section>
@@ -64,7 +77,6 @@ export default function Parties({ user }: { user: AppUser }) {
           ))}
         </select>
       </div>
-      {type === "Employee" && <p className="muted">Employees can also be edited directly in the Airtable Parties table.</p>}
       {error && <p className="error">{error}</p>}
 
       {owner && pending.length > 0 && (
@@ -160,7 +172,8 @@ export default function Parties({ user }: { user: AppUser }) {
             </thead>
             <tbody>
               {data.map((p) => (
-                <tr key={p.id} className={p.active ? "" : "inactive"}>
+                <Fragment key={p.id}>
+                <tr className={p.active ? "" : "inactive"}>
                   <td>{p.name}</td>
                   {type === "Supplier" && <td>{p.paymentTerms}</td>}
                   {type === "Supplier" && <td>{p.itemsSupplied}</td>}
@@ -169,17 +182,128 @@ export default function Parties({ user }: { user: AppUser }) {
                   <td>{!p.active ? "Inactive" : p.type === "Supplier" ? (p.approvalStatus ?? "Pending") : "Active"}</td>
                   {manager && (
                     <td>
-                      <button className="link" onClick={() => act(`/parties/${p.id}/active`, { active: !p.active })}>
-                        {p.active ? "Deactivate" : "Reactivate"}
-                      </button>
+                      <span className="row-links">
+                        {canEdit && (
+                          <button className="link" onClick={() => setEditing(editing === p.id ? null : p.id)}>
+                            Edit
+                          </button>
+                        )}
+                        <button className="link" onClick={() => act(`/parties/${p.id}/active`, { active: !p.active })}>
+                          {p.active ? "Deactivate" : "Reactivate"}
+                        </button>
+                        {owner && (
+                          <button className="link danger" onClick={() => remove(p)}>
+                            Delete
+                          </button>
+                        )}
+                      </span>
                     </td>
                   )}
                 </tr>
+                {editing === p.id && (
+                  <tr>
+                    <td colSpan={8}>
+                      <EditParty
+                        party={p}
+                        onDone={() => {
+                          setEditing(null);
+                          reload();
+                        }}
+                      />
+                    </td>
+                  </tr>
+                )}
+                </Fragment>
               ))}
             </tbody>
           </table>
         </div>
       )}
     </section>
+  );
+}
+
+/** Edit a person's or supplier's details. Posted entries keep the name they were posted with. */
+function EditParty({ party, onDone }: { party: Party; onDone: () => void }) {
+  const [f, setF] = useState({
+    name: party.name,
+    contactDetails: party.contactDetails ?? "",
+    paymentTerms: party.paymentTerms ?? "",
+    itemsSupplied: party.itemsSupplied ?? "",
+    profitCenter: party.profitCenter ?? "",
+    store: party.books.includes("Store"),
+    commissary: party.books.includes("Commissary"),
+  });
+  const [error, setError] = useState<string | null>(null);
+  async function save(e: FormEvent) {
+    e.preventDefault();
+    setError(null);
+    try {
+      const books = [...(f.store ? ["Store"] : []), ...(f.commissary ? ["Commissary"] : [])];
+      await api(`/parties/${party.id}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          name: f.name,
+          contactDetails: f.contactDetails,
+          books,
+          ...(party.type === "Supplier" ? { paymentTerms: f.paymentTerms, itemsSupplied: f.itemsSupplied } : {}),
+          ...(party.type === "Employee" ? { profitCenter: f.profitCenter || null } : {}),
+        }),
+      });
+      onDone();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not save");
+    }
+  }
+  return (
+    <form className="row-card grid2" onSubmit={save}>
+      <label>
+        Name *
+        <input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} required />
+      </label>
+      <label>
+        Contact details
+        <input value={f.contactDetails} onChange={(e) => setF({ ...f, contactDetails: e.target.value })} />
+      </label>
+      {party.type === "Supplier" && (
+        <>
+          <label>
+            Payment terms *
+            <input value={f.paymentTerms} onChange={(e) => setF({ ...f, paymentTerms: e.target.value })} />
+          </label>
+          <label>
+            Items supplied
+            <input value={f.itemsSupplied} onChange={(e) => setF({ ...f, itemsSupplied: e.target.value })} />
+          </label>
+        </>
+      )}
+      {party.type === "Employee" && (
+        <label>
+          Profit center
+          <select value={f.profitCenter} onChange={(e) => setF({ ...f, profitCenter: e.target.value })}>
+            <option value="">Choose…</option>
+            <option>GGC</option>
+            <option>The Nest</option>
+          </select>
+        </label>
+      )}
+      <div className="span2 row-actions">
+        Books:
+        <label className="inline">
+          <input type="checkbox" checked={f.store} onChange={(e) => setF({ ...f, store: e.target.checked })} /> Store
+        </label>
+        <label className="inline">
+          <input type="checkbox" checked={f.commissary} onChange={(e) => setF({ ...f, commissary: e.target.checked })} /> Commissary
+        </label>
+      </div>
+      <div className="span2 row-actions">
+        <button type="submit">Save</button>
+        <button type="button" className="link" onClick={onDone}>
+          Cancel
+        </button>
+        {error && <span className="error">{error}</span>}
+        <span className="muted small">Entries already posted keep the name they were posted with.</span>
+      </div>
+    </form>
   );
 }
