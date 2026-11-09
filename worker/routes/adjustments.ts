@@ -42,10 +42,10 @@ async function periodIsFinal(c: { env: AppContext["Bindings"] }, key: string): P
   return data?.status === "Final";
 }
 
-// One entry with the form it was built from (for the correction screen).
+// One entry with the form it was built from (for the correction and edit screens). Owners and
+// the Accountant see any entry; others only their own.
 adjustments.get("/:id{[0-9]+}", async (c) => {
   const user = c.get("user");
-  ownerOrAccountant(user, "corrects entries");
   const db = serviceClient(c.env);
   const id = Number(c.req.param("id"));
   const [{ data, error }, accounts, names] = await Promise.all([
@@ -55,6 +55,7 @@ adjustments.get("/:id{[0-9]+}", async (c) => {
   ]);
   dbError(error);
   if (!data) throw new HTTPException(404, { message: "Entry not found." });
+  if (!seesEverything(user) && (data as { created_by: string }).created_by !== user.id) forbidden();
   return c.json({ entry: toJournalEntry(data, new Map(accounts.map((a) => [a.code, a])), names), form: (data as { form: unknown }).form });
 });
 

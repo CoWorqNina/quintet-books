@@ -157,3 +157,43 @@ entries.post("/:id/cancel", async (c) => {
   dbError((await db.rpc("cancel_entry", { p_user: user.id, p_id: id })).error);
   return c.json({ ok: true });
 });
+
+// Edit an entry still waiting for approval (Draft, Submitted or Rejected): rebuilt from the
+// corrected form and resubmitted. Its creator, or an Owner / the Accountant. Daily report
+// entries are edited through their report; two-book entries and entries that create an asset,
+// prepaid or loan record are cancelled and entered again instead.
+entries.put("/:id{[0-9]+}", async (c) => {
+  const user = c.get("user");
+  const id = Number(c.req.param("id"));
+  const db = serviceClient(c.env);
+  const { data: row, error } = await db
+    .from("entries")
+    .select("id, status, kind, created_by, group_id, daily_report_id, form")
+    .eq("id", id)
+    .maybeSingle();
+  dbError(error);
+  if (!row) throw new HTTPException(404, { message: "Entry not found." });
+  if (!seesEverything(user) && row.created_by !== user.id) forbidden("You can only edit entries you made.");
+  if (!["Draft", "Submitted", "Rejected"].includes(row.status)) badRequest("Only entries waiting for approval can be edited; approved ones are corrected from the Journal.");
+  if (row.daily_report_id) badRequest("This entry belongs to a daily report: edit the daily report instead.");
+  const form = row.form as { template: number; book: Book; profitCenter: "GGC" | "The Nest" } | null;
+  const template = form && row.kind === "Template" ? getTemplate(form.template) : undefined;
+  if (!form || !template) badRequest("This entry has no saved form to edit; cancel it and enter it again.");
+  if (!template.roles.includes(user.role)) forbidden(`Your role can't enter ${template.name}.`);
+  if (row.group_id) {
+    const { count } = await db.from("entries").select("id", { count: "exact", head: true }).eq("group_id", row.group_id);
+    if ((count ?? 0) > 1) badRequest("This entry posts to both books; cancel it and enter it again.");
+  }
+
+  const body = await c.req.json<{ values: Values }>();
+  const values = cleanValues(template.fields, body.values ?? {});
+  checkEntryDate(String(values.date ?? ""));
+  const ctx = await templateContext(c.env, user, template, form.book, form.profitCenter);
+  const { entries: drafts, errors, register } = template.build(values, ctx);
+  if (errors.length || !drafts.length) return c.json({ error: errors[0] ?? "Nothing to record.", errors }, 400);
+  if (register || drafts.length !== 1) badRequest("This kind of entry can't be edited; cancel it and enter it again.");
+
+  dbError((await db.rpc("update_entry", { p_user: user.id, p_entry_id: id, p_entry: toDbEntry(drafts[0]), p_submit: true })).error);
+  dbError((await db.from("entries").update({ form: { ...form, values } }).eq("id", id)).error);
+  return c.json({ ok: true });
+});

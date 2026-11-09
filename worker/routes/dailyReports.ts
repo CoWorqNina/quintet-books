@@ -62,12 +62,9 @@ async function prepare(env: Env, user: AppUser, body: DailyReportInput) {
   return { input, result: buildDailyReport(input, accounts) };
 }
 
-dailyReports.post("/", async (c) => {
-  const user = c.get("user");
-  const { input, result } = await prepare(c.env, user, await c.req.json());
-  if (result.errors.length) return c.json({ error: result.errors[0], errors: result.errors }, 400);
-
-  const report = {
+/** The stored report: what was entered, with net / gross and the drawer figures worked out. */
+function reportRow(input: DailyReportInput, result: ReturnType<typeof buildDailyReport>) {
+  return {
     business_date: input.businessDate,
     profit_center: input.profitCenter,
     // Net and gross are worked out from the payment types, not typed.
@@ -78,9 +75,15 @@ dailyReports.post("/", async (c) => {
     attachments: input.attachments,
     notes: input.notes ?? null,
   };
+}
+
+dailyReports.post("/", async (c) => {
+  const user = c.get("user");
+  const { input, result } = await prepare(c.env, user, await c.req.json());
+  if (result.errors.length) return c.json({ error: result.errors[0], errors: result.errors }, 400);
   const { data, error } = await serviceClient(c.env).rpc("create_daily_report", {
     p_user: user.id,
-    p_report: report,
+    p_report: reportRow(input, result),
     p_entries: result.entries.map(toDbEntry),
   });
   dbError(error);
@@ -141,4 +144,47 @@ dailyReports.post("/:id/cancel", async (c) => {
   if (!allowed) forbidden();
   dbError((await db.rpc("cancel_daily_report", { p_user: user.id, p_id: id, p_reason: reason ?? "" })).error);
   return c.json({ ok: true });
+});
+
+/** A report this user may change: its creator, an Owner / the Accountant, or a Supervisor of that store. */
+async function loadOwnReport(env: Env, user: AppUser, id: number) {
+  const { data: report, error } = await serviceClient(env)
+    .from("daily_reports")
+    .select("id, business_date, profit_center, status, pos, drawer, paid_outs, food_charges, attachments, notes, created_by, entries(status)")
+    .eq("id", id)
+    .maybeSingle();
+  dbError(error);
+  if (!report) throw new HTTPException(404, { message: "Daily report not found." });
+  const allowed =
+    seesEverything(user) ||
+    report.created_by === user.id ||
+    (user.role === "Supervisor" && user.profitCenters.includes(report.profit_center));
+  if (!allowed) forbidden();
+  const statuses = ((report.entries ?? []) as { status: string }[]).map((e) => e.status);
+  const editable = report.status === "Active" && !statuses.includes("Approved");
+  return { report, editable };
+}
+
+// One report as entered, to edit it.
+dailyReports.get("/:id{[0-9]+}", async (c) => {
+  const { report, editable } = await loadOwnReport(c.env, c.get("user"), Number(c.req.param("id")));
+  return c.json({ report, editable });
+});
+
+// Edit a report still waiting for approval: it replaces the old one and its entries.
+dailyReports.put("/:id{[0-9]+}", async (c) => {
+  const user = c.get("user");
+  const id = Number(c.req.param("id"));
+  const { editable } = await loadOwnReport(c.env, user, id);
+  if (!editable) badRequest("This report has approved entries (or was cancelled), so it can't be edited. Reverse its entries instead.");
+  const { input, result } = await prepare(c.env, user, await c.req.json());
+  if (result.errors.length) return c.json({ error: result.errors[0], errors: result.errors }, 400);
+  const { data, error } = await serviceClient(c.env).rpc("replace_daily_report", {
+    p_user: user.id,
+    p_id: id,
+    p_report: reportRow(input, result),
+    p_entries: result.entries.map(toDbEntry),
+  });
+  dbError(error);
+  return c.json({ reportId: data.report_id, entryIds: data.entry_ids, warnings: result.warnings });
 });

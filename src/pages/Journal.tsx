@@ -51,6 +51,13 @@ export default function Journal({ user }: { user: AppUser }) {
 
   const canReverse = (e: JournalEntry) => (user.role === "Owner" || user.role === "Accountant") && e.status === "Approved" && !e.reversedBy;
 
+  // Entries waiting for approval can be edited by whoever made them (or an Owner / the Accountant).
+  const canEdit = (e: JournalEntry) =>
+    e.kind === "Template" &&
+    !e.dailyReportId &&
+    ["Draft", "Submitted", "Rejected"].includes(e.status) &&
+    (e.createdBy === user.id || user.role === "Owner" || user.role === "Accountant");
+
   // The server checks who may cancel; Staff only ever see their own entries.
   const canCancel = (e: JournalEntry) =>
     !e.dailyReportId &&
@@ -86,6 +93,10 @@ export default function Journal({ user }: { user: AppUser }) {
               {e.classifiesEntryId && <span className="muted">Classifies #{e.classifiesEntryId}</span>}
               {e.reversedBy && <span className="badge muted-badge">Reversed by #{e.reversedBy}</span>}
               {canReverse(e) && e.correctable && <Link to={`/entries/${e.id}/correct`}>Correct</Link>}
+              {canEdit(e) && <Link to={`/entries/${e.id}/edit`}>Edit</Link>}
+              {e.dailyReportId && ["Draft", "Submitted", "Rejected"].includes(e.status) && (user.role !== "Staff" || e.createdBy === user.id) && (
+                <Link to={`/daily-reports/${e.dailyReportId}/edit`}>Edit daily report</Link>
+              )}
               {canReverse(e) && (
                 <button className="link" onClick={() => reverse(e)}>
                   Reverse

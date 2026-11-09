@@ -67,9 +67,12 @@ export default function DailyReports() {
                   </td>
                   <td>
                     {r.status === "Active" && !r.entryStatuses.Approved && (
-                      <button className="link danger" onClick={() => cancel(r)}>
-                        Cancel
-                      </button>
+                      <span className="row-links">
+                        <Link to={`/daily-reports/${r.id}/edit`}>Edit</Link>
+                        <button className="link danger" onClick={() => cancel(r)}>
+                          Cancel
+                        </button>
+                      </span>
                     )}
                   </td>
                 </tr>

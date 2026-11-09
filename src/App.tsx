@@ -7,7 +7,7 @@ import { supabase } from "./lib/supabase";
 import { DAILY_REPORT_ROLES, templatesFor } from "../shared/templates";
 import Accounts from "./pages/Accounts";
 import Approvals from "./pages/Approvals";
-import DailyReport from "./pages/DailyReport";
+import DailyReport, { EditDailyReport } from "./pages/DailyReport";
 import DailyReports from "./pages/DailyReports";
 import Home from "./pages/Home";
 import Journal from "./pages/Journal";
@@ -19,7 +19,7 @@ import MonthEnd from "./pages/MonthEnd";
 import Login from "./pages/Login";
 import Classify from "./pages/Classify";
 import ManualEntry from "./pages/ManualEntry";
-import NewEntry, { CorrectEntry } from "./pages/NewEntry";
+import NewEntry, { CorrectEntry, EditEntry } from "./pages/NewEntry";
 import Registers from "./pages/Registers";
 import Statements from "./pages/Statements";
 import Users from "./pages/Users";
@@ -112,6 +112,8 @@ export default function App() {
           {canReport && <Route path="/daily-reports" element={<DailyReports />} />}
           {canReport && <Route path="/daily-reports/new" element={<DailyReport user={user} />} />}
           {canEnter && <Route path="/entries/new" element={<NewEntry user={user} />} />}
+          {canEnter && <Route path="/entries/:id/edit" element={<EditEntry user={user} />} />}
+          {canReport && <Route path="/daily-reports/:id/edit" element={<EditDailyReport user={user} />} />}
           {isOwner && <Route path="/approvals" element={<Approvals />} />}
           <Route path="/journal" element={<Journal user={user} />} />
           <Route path="/parties" element={<Parties user={user} />} />

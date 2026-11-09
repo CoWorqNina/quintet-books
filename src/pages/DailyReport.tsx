@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { cashAccountsFor, isBankAccount, needsQuantity } from "../../shared/accounts";
 import { buildDailyReport, type DailyReportInput, type PaidOut } from "../../shared/dailyReport";
 import type { Attachment } from "../../shared/entries";
@@ -9,7 +9,7 @@ import { GO_LIVE_DATE } from "../../shared/config";
 import { EntryPreview } from "../components/EntryPreview";
 import { AttachmentPicker, EmployeeSelect, ExpenseAccountSelect, MoneyInput } from "../components/inputs";
 import { api } from "../lib/api";
-import { todayManila, useAccounts, useEmployees, useParties } from "../lib/data";
+import { todayManila, useAccounts, useEmployees, useLoad, useParties } from "../lib/data";
 
 type Num = string;
 interface PaidOutRow extends Omit<PaidOut, "amount" | "quantity" | "unitPrice"> {
@@ -26,20 +26,59 @@ const POS_FIELDS = [
   ["foodCharges", "Food charges"],
 ] as const;
 
-export default function DailyReport({ user }: { user: AppUser }) {
+/** A daily report as saved (to edit it). */
+interface StoredReport {
+  id: number;
+  business_date: string;
+  profit_center: "GGC" | "The Nest";
+  pos: Record<string, number | string | null>;
+  drawer: Record<string, unknown> & { cashIns?: { amount: number; sourceAccount: string; reference: string }[] };
+  paid_outs: PaidOut[];
+  food_charges: { employeeId: string; employeeName: string; amount: number }[];
+  attachments: Attachment[];
+  notes: string | null;
+}
+
+const str = (v: unknown) => (v === null || v === undefined || v === 0 ? "" : String(v));
+
+/** Editing a report still waiting for approval: loads it into the same form. */
+export function EditDailyReport({ user }: { user: AppUser }) {
+  const { id } = useParams();
+  const { data, error } = useLoad<{ report: StoredReport; editable: boolean }>(`/daily-reports/${id}`);
+  if (error) return <p className="error">{error}</p>;
+  if (!data) return <p className="muted">Loading…</p>;
+  if (!data.editable) return <p>This daily report can't be edited: some of its entries are approved, or it was cancelled. Reverse its entries from the Journal instead.</p>;
+  return <DailyReport user={user} editing={data.report} />;
+}
+
+export default function DailyReport({ user, editing }: { user: AppUser; editing?: StoredReport }) {
   const navigate = useNavigate();
   const pcs = user.profitCenters.filter((p): p is "GGC" | "The Nest" => p === "GGC" || p === "The Nest");
-  const [profitCenter, setProfitCenter] = useState<"GGC" | "The Nest">(pcs[0] ?? "GGC");
-  const [businessDate, setBusinessDate] = useState(todayManila());
-  const [photos, setPhotos] = useState<Attachment[]>([]);
-  const [pos, setPos] = useState<Record<string, Num>>({});
-  const [discountAccount, setDiscountAccount] = useState("");
-  const [drawer, setDrawer] = useState<Record<string, Num>>({});
-  const [cashier, setCashier] = useState<{ id: string; name: string } | null>(null);
-  const [paidOuts, setPaidOuts] = useState<PaidOutRow[]>([]);
-  const [cashIns, setCashIns] = useState<{ amount: Num; sourceAccount: string; reference: string }[]>([]);
-  const [foodCharges, setFoodCharges] = useState<{ employeeId: string; employeeName: string; amount: Num }[]>([]);
-  const [notes, setNotes] = useState("");
+  const e = editing;
+  const d = e?.drawer ?? {};
+  const [profitCenter, setProfitCenter] = useState<"GGC" | "The Nest">(e?.profit_center ?? pcs[0] ?? "GGC");
+  const [businessDate, setBusinessDate] = useState(e?.business_date ?? todayManila());
+  const [photos, setPhotos] = useState<Attachment[]>(e?.attachments ?? []);
+  const [pos, setPos] = useState<Record<string, Num>>(
+    e ? Object.fromEntries(["cash", "card", "gcash", "foodCharges", "refunds", "discounts"].map((k) => [k, str(e.pos[k])])) : {},
+  );
+  const [discountAccount, setDiscountAccount] = useState(str(e?.pos.discountAccount));
+  const [drawer, setDrawer] = useState<Record<string, Num>>(
+    e ? { beginning: str(d.beginningPettyCash), actual: str(d.actualCash), remitted: str(d.cashRemitted), nextDay: str(d.nextDayPettyCash) } : {},
+  );
+  const [cashier, setCashier] = useState<{ id: string; name: string } | null>(
+    d.cashierId ? { id: String(d.cashierId), name: String(d.cashierName ?? "") } : null,
+  );
+  const [paidOuts, setPaidOuts] = useState<PaidOutRow[]>(
+    (e?.paid_outs ?? []).map((p) => ({ ...p, amount: str(p.amount), quantity: str(p.quantity), unitPrice: str(p.unitPrice) })),
+  );
+  const [cashIns, setCashIns] = useState<{ amount: Num; sourceAccount: string; reference: string }[]>(
+    (d.cashIns ?? []).map((c) => ({ ...c, amount: str(c.amount), reference: c.reference ?? "" })),
+  );
+  const [foodCharges, setFoodCharges] = useState<{ employeeId: string; employeeName: string; amount: Num }[]>(
+    (e?.food_charges ?? []).map((f) => ({ employeeId: f.employeeId, employeeName: f.employeeName, amount: str(f.amount) })),
+  );
+  const [notes, setNotes] = useState(e?.notes ?? "");
   const [busy, setBusy] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
 
@@ -94,7 +133,8 @@ export default function DailyReport({ user }: { user: AppUser }) {
     setBusy(true);
     setServerError(null);
     try {
-      await api("/daily-reports", { method: "POST", body: JSON.stringify(input) });
+      if (editing) await api(`/daily-reports/${editing.id}`, { method: "PUT", body: JSON.stringify(input) });
+      else await api("/daily-reports", { method: "POST", body: JSON.stringify(input) });
       navigate("/daily-reports");
     } catch (e) {
       setServerError(e instanceof Error ? e.message : "Could not save");
@@ -104,7 +144,8 @@ export default function DailyReport({ user }: { user: AppUser }) {
 
   return (
     <section className="form-page">
-      <h1>Daily cashier report</h1>
+      <h1>{editing ? `Edit daily report: ${editing.profit_center}, ${editing.business_date}` : "Daily cashier report"}</h1>
+      {editing && <p className="muted">Saving replaces the report and its entries with these figures and sends them for approval again.</p>}
 
       <div className="card grid2">
         <label>
@@ -408,7 +449,7 @@ export default function DailyReport({ user }: { user: AppUser }) {
         {result && <EntryPreview entries={result.entries} accounts={accounts} />}
         {serverError && <p className="error">{serverError}</p>}
         <button disabled={busy || !result || result.errors.length > 0} onClick={submit}>
-          {busy ? "Submitting…" : "Submit for approval"}
+          {busy ? "Submitting…" : editing ? "Save changes" : "Submit for approval"}
         </button>
       </div>
     </section>

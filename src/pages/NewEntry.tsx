@@ -26,7 +26,27 @@ export function CorrectEntry({ user }: { user: AppUser }) {
   return <NewEntry user={user} correcting={{ entry: data.entry, form: data.form }} />;
 }
 
-export default function NewEntry({ user, correcting }: { user: AppUser; correcting?: { entry: JournalEntry; form: SavedForm } }) {
+/** Editing an entry still waiting for approval: loads its form, then saves it back in place. */
+export function EditEntry({ user }: { user: AppUser }) {
+  const { id } = useParams();
+  const { data, error } = useLoad<{ entry: JournalEntry; form: SavedForm | null }>(`/entries/${id}`);
+  if (error) return <p className="error">{error}</p>;
+  if (!data) return <p className="muted">Loading…</p>;
+  if (!data.form || !["Draft", "Submitted", "Rejected"].includes(data.entry.status)) {
+    return <p>Entry #{id} can't be edited here: only entries waiting for approval, entered with a form, can be.</p>;
+  }
+  return <NewEntry user={user} editing={{ entry: data.entry, form: data.form }} />;
+}
+
+export default function NewEntry({
+  user,
+  correcting,
+  editing,
+}: {
+  user: AppUser;
+  correcting?: { entry: JournalEntry; form: SavedForm };
+  editing?: { entry: JournalEntry; form: SavedForm };
+}) {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const templates = templatesFor(user.role, user.books);
@@ -84,6 +104,8 @@ export default function NewEntry({ user, correcting }: { user: AppUser; correcti
     try {
       if (correcting) {
         await api(`/entries/${correcting.entry.id}/reverse`, { method: "POST", body: JSON.stringify({ reason, values }) });
+      } else if (editing) {
+        await api(`/entries/${editing.entry.id}`, { method: "PUT", body: JSON.stringify({ values }) });
       } else {
         await api("/entries", { method: "POST", body: JSON.stringify({ template: number, book: ctx.book, profitCenter, values }) });
       }
@@ -96,7 +118,8 @@ export default function NewEntry({ user, correcting }: { user: AppUser; correcti
 
   return (
     <section className="form-page">
-      <h1>{correcting ? `Correct entry #${correcting.entry.id}` : "New entry"}</h1>
+      <h1>{correcting ? `Correct entry #${correcting.entry.id}` : editing ? `Edit entry #${editing.entry.id}` : "New entry"}</h1>
+      {editing && <p className="muted">Saving updates this entry in place and sends it for approval again.</p>}
       {correcting && (
         <div className="card">
           <p>
@@ -113,7 +136,7 @@ export default function NewEntry({ user, correcting }: { user: AppUser; correcti
         <label>
           Transaction type
           <select
-            disabled={!!correcting}
+            disabled={!!correcting || !!editing}
             value={number}
             onChange={(e) => {
               setNumber(Number(e.target.value));
@@ -136,7 +159,7 @@ export default function NewEntry({ user, correcting }: { user: AppUser; correcti
         {!template.twoBook && books.length > 1 && (
           <label>
             Book
-            <select value={book} onChange={(e) => setBook(e.target.value as Book)} disabled={!!correcting}>
+            <select value={book} onChange={(e) => setBook(e.target.value as Book)} disabled={!!correcting || !!editing}>
               {books.map((b) => (
                 <option key={b}>{b}</option>
               ))}
@@ -146,7 +169,7 @@ export default function NewEntry({ user, correcting }: { user: AppUser; correcti
         {ctx.book === "Store" && (!template.twoBook || template.fields.some((f) => f.filter === "payFrom")) && (
           <label>
             Profit center
-            <select value={profitCenter} onChange={(e) => setProfitCenter(e.target.value as "GGC" | "The Nest")} disabled={pcs.length < 2 || !!correcting}>
+            <select value={profitCenter} onChange={(e) => setProfitCenter(e.target.value as "GGC" | "The Nest")} disabled={pcs.length < 2 || !!correcting || !!editing}>
               {pcs.map((p) => (
                 <option key={p}>{p}</option>
               ))}
@@ -182,7 +205,7 @@ export default function NewEntry({ user, correcting }: { user: AppUser; correcti
         {built && <EntryPreview entries={built.entries} accounts={ctx.accounts} />}
         {serverError && <p className="error">{serverError}</p>}
         <button disabled={busy || !built?.entries.length || built.errors.length > 0 || (!!correcting && !reason.trim())} onClick={submit}>
-          {busy ? "Submitting…" : correcting ? "Reverse and submit correction" : "Submit for approval"}
+          {busy ? "Submitting…" : correcting ? "Reverse and submit correction" : editing ? "Save changes" : "Submit for approval"}
         </button>
       </div>
     </section>
