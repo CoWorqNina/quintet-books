@@ -158,6 +158,7 @@ export default function NewEntry({ user, correcting }: { user: AppUser; correcti
 
       <div className="card">
         <TemplateForm
+          built={built}
           fields={template.fields}
           values={values}
           onChange={setValues}

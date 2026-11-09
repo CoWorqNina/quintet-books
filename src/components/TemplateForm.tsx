@@ -3,7 +3,7 @@ import { todayManila } from "../lib/data";
 import type { Attachment } from "../../shared/entries";
 import { formatPeso, sumCents, toCents } from "../../shared/money";
 import { billLabel, type OpenBill } from "../../shared/ledger";
-import { billsFor, type DueInstallment, type Field, installmentsFor, type Row, type TemplateContext, type Values, visibleFields } from "../../shared/templates";
+import { billsFor, type BuildResult, type DueInstallment, type Field, installmentsFor, type Row, type TemplateContext, type Values, visibleFields } from "../../shared/templates";
 import type { Account, Party } from "../../shared/types";
 import { AttachmentPicker, MoneyInput } from "./inputs";
 
@@ -17,7 +17,9 @@ export function TemplateForm({
   parties,
   maxDate,
   minDate,
+  built = null,
 }: {
+  built?: BuildResult | null;
   fields: Field[];
   values: Values;
   onChange: (v: Values) => void;
@@ -42,6 +44,11 @@ export function TemplateForm({
             {f.itemsAll && (
               <InstallmentsField installments={installmentsFor(ctx)} rows={(values[f.name] as Row[]) ?? []} onChange={(rows) => set(f.name, rows)} />
             )}
+          </div>
+        ) : f.type === "readout" ? (
+          <div key={f.name} className="readout">
+            <span className="label">{f.label}</span>
+            <strong>{f.compute?.(values, built) ?? "—"}</strong>
           </div>
         ) : f.type === "checkbox" ? (
           <label key={f.name} className="inline span2">
@@ -239,7 +246,11 @@ function RowsField({
           + Add line
         </button>
         <span className="spacer" />
-        {rows.length > 0 && <strong>Total {formatPeso(total)}</strong>}
+        {rows.length > 0 && (
+          <strong>
+            {field.totalLabel ?? "Total"} {formatPeso(total)}
+          </strong>
+        )}
       </div>
     </div>
   );

@@ -21,7 +21,8 @@ export type FieldType =
   | "loan" // loan from the Loan Tracker
   | "profitCenter" // GGC / The Nest (per line)
   | "rows" // repeating lines with `columns`
-  | "openItems"; // unpaid bills to tick off (rows of { lineId, amount })
+  | "openItems" // unpaid bills to tick off (rows of { lineId, amount })
+  | "readout"; // a figure worked out from the entry being built (not typed)
 
 export interface Field {
   name: string;
@@ -45,6 +46,10 @@ export interface Field {
   itemsPartyField?: string;
   /** openItems: every unpaid bill in the book plus loan installments (combined payment). */
   itemsAll?: boolean;
+  /** readout: the text shown, from the values and the entry built from them. */
+  compute?: (values: Values, built: BuildResult | null) => string;
+  /** rows: label for the total under the rows (default "Total"). */
+  totalLabel?: string;
 }
 
 export type Scalar = string | number | boolean | null | undefined;
@@ -149,6 +154,7 @@ function missing(f: Field, v: unknown): boolean {
   if (f.type === "attachment") return !att(v);
   if (f.type === "money") return !(cents(v) > 0);
   if (f.type === "rows") return rowsOf(v).length === 0;
+  if (f.type === "readout") return false;
   if (f.type === "openItems") return !rowsOf(v).some((r) => cents(r.amount) > 0);
   if (f.type === "checkbox") return !v;
   return !str(v);
@@ -364,6 +370,7 @@ export const otherSourcesField: Field = {
   name: "otherSources",
   label: "Also paid from (split across accounts)",
   type: "rows",
+  totalLabel: "From the other accounts",
   help: "Only if part of this payment came from another bank or e-wallet. The account above pays the rest",
   columns: [
     { name: "account", label: "Bank, e-wallet or cash", type: "account", filter: "payment", required: true },
@@ -404,3 +411,21 @@ export function otherSources(v: Values, ctx: TemplateContext, totalCents: number
     : [];
   return { credits, feeLines, mainCents: totalCents - coveredCents };
 }
+
+/**
+ * What the main "Paid from" account pays: the payment total less what the other accounts
+ * cover (its own transfer fee shown apart).
+ */
+export const mainSourceField: Field = {
+  name: "mainAmount",
+  label: "Amount from this account",
+  type: "readout",
+  compute: (v, built) => {
+    const code = str(v.paidFrom);
+    const line = built?.entries[0]?.lines.find((l) => l.account_code === code && /\.paid$/.test(l.template_line) && l.creditCents > 0);
+    if (!code || !line) return "—";
+    const fee = Math.max(0, cents(v.transferFee));
+    const others = rowsOf(v.otherSources).length > 0;
+    return `${formatPeso(line.creditCents - fee)}${fee ? ` + ${formatPeso(fee)} fee` : ""}${others ? " (the rest, after the other accounts)" : ""}`;
+  },
+};
