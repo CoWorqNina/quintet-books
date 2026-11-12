@@ -51,7 +51,7 @@ export default function NewEntry({
   const [params] = useSearchParams();
   const templates = templatesFor(user.role, user.books);
   const pcs = user.profitCenters.filter((p): p is "GGC" | "The Nest" => p === "GGC" || p === "The Nest");
-  const saved = correcting?.form;
+  const saved = correcting?.form ?? editing?.form;
   const [number, setNumber] = useState(saved?.template ?? (Number(params.get("template")) || templates[0]?.number || 0));
   const template = templates.find((t) => t.number === number);
   const books = (template?.books ?? []).filter((b) => user.books.includes(b));
