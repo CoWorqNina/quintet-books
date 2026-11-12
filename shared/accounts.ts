@@ -144,6 +144,8 @@ export type AccountFilter =
   | "card" // owners' SPayLater and credit cards (2160, 2190)
   | "payable" // a card, SPayLater or reimbursement account (bills paid with #18)
   | "payment" // bank, e-wallet, or cash on hand for deposit (paying a bill)
+  | "billAccount" // a payable whose bills can be rescheduled: suppliers, cards, SPayLater, reimbursements, payroll and other payables, loans with no schedule
+  | "charge" // an expense or interest line added to a rescheduled bill
   | "bankOrCard" // bank, e-wallet, cash for deposit, or an owner's card / SPayLater
   | "payFromOrCard" // payFrom, or an owner's card / SPayLater
   | "ppe" // property & equipment classes
@@ -181,6 +183,16 @@ export function accountMatches(filter: AccountFilter, a: Account | undefined, ct
       return isCardAccount(a);
     case "payable":
       return a.parentCode === REIMBURSEMENTS || isCardAccount(a);
+    case "billAccount":
+      return (
+        a.code === "2100" ||
+        a.parentCode === REIMBURSEMENTS ||
+        isCardAccount(a) ||
+        ["2120", "2130", "2135", "2141", "2142", "2143", "2155", "2170"].includes(a.code) ||
+        (a.parentCode === "2200" && a.type === "Liability" && a.code !== "2250" && a.code !== "2260")
+      );
+    case "charge":
+      return isExpenseAccount(a) || a.parentCode === "7500";
     case "payment":
       return (a.isCashAccount && !CASH_ON_HAND.has(a.code)) || CASH_FOR_DEPOSIT.has(a.code);
     case "bankOrCard":

@@ -184,7 +184,14 @@ export function Payables({ canPay = true }: { canPay?: boolean }) {
                             {i.pendingCents > 0 && <div className="small muted">{peso(i.pendingCents)} in a payment waiting for approval</div>}
                           </td>
                           <td className="num">{peso(toPay(i))}</td>
-                          <td>{canPay && i.pay && toPay(i) > 0 && <Link to={payLink(i)}>Pay</Link>}</td>
+                          <td>
+                            {canPay && i.pay && toPay(i) > 0 && (
+                              <span className="row-links">
+                                <Link to={payLink(i)}>Pay</Link>
+                                {i.key.startsWith("bill:") && <Link to={rescheduleLink(i)}>Reschedule</Link>}
+                              </span>
+                            )}
+                          </td>
                         </tr>
                       ))}
                   </Fragment>
@@ -220,5 +227,12 @@ function combinedLink(items: PayableItem[]) {
   const list = items.map((i) => `${i.key}:${(toPay(i) / 100).toFixed(2)}`).join(",");
   const p = new URLSearchParams({ template: "44", items: list });
   if (items[0]?.book === "Commissary") p.set("book", "Commissary");
+  return `/entries/new?${p}`;
+}
+
+/** Opens #45 Reschedule a Payable with this bill ticked (installments, new due date, added charges). */
+function rescheduleLink(i: PayableItem) {
+  const p = new URLSearchParams({ template: "45", account: i.accountCode, items: `${i.key}:${(toPay(i) / 100).toFixed(2)}` });
+  if (i.book === "Commissary") p.set("book", "Commissary");
   return `/entries/new?${p}`;
 }

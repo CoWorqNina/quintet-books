@@ -272,6 +272,37 @@ describe("purchase templates", () => {
     expect(build(44, { date: "2026-11-16", payTo: "Kai", paidFrom: "1140", bills: [{ installmentId: 72, amount: 1874.58 }] }, c44).errors.join()).toMatch(/pay installment 7 before 8/);
   });
 
+  it("#45 reschedules a card charge into installments, with an added interest charge", () => {
+    const r = build(45, {
+      date: "2026-11-12", account: "2191", reason: "6-month installment, EWB ref 778",
+      bills: [{ lineId: 21, amount: 3000 }],
+      installments: [
+        { dueDate: "2026-12-04", amount: 1050, label: "" },
+        { dueDate: "2027-01-04", amount: 1050 },
+        { dueDate: "2027-02-04", amount: 1050 },
+      ],
+      charges: [{ account: "6740", description: "Installment fee", amount: 150 }],
+    }, billsCtx);
+    expect(r.errors).toEqual([]);
+    expect(r.entries[0].lines.map((l) => [l.account_code, l.debitCents, l.creditCents, l.settles_line_id ?? null, l.due_date ?? null])).toEqual([
+      ["2191", 3000_00, 0, 21, null],
+      ["6740", 150_00, 0, null, null],
+      ["2191", 0, 1050_00, null, "2026-12-04"],
+      ["2191", 0, 1050_00, null, "2027-01-04"],
+      ["2191", 0, 1050_00, null, "2027-02-04"],
+    ]);
+    expect(r.entries[0].lines[2].memo).toMatch(/installment 1 of 3/);
+    // the schedule has to match the bill plus charges
+    const off = build(45, { date: "2026-11-12", account: "2191", bills: [{ lineId: 21, amount: 3000 }], installments: [{ dueDate: "2026-12-04", amount: 2999 }] }, billsCtx);
+    expect(off.errors.join()).toMatch(/adds up to ₱2,999.00, but the bills plus charges are ₱3,000.00/);
+  });
+
+  it("#45 changes a supplier bill's due date (one installment) and keeps the supplier", () => {
+    const r = build(45, { date: "2026-11-12", account: "2100", bills: [{ lineId: 11, amount: 4200 }], installments: [{ dueDate: "2026-11-30", amount: 4200, label: "Invoice 11, moved to Nov 30" }] }, billsCtx);
+    expect(r.errors).toEqual([]);
+    expect(r.entries[0].lines[1]).toMatchObject({ account_code: "2100", creditCents: 4200_00, party_id: "recSup", due_date: "2026-11-30", memo: "Invoice 11, moved to Nov 30" });
+  });
+
   it("#15-#17 advance, delivery, personal funds", () => {
     expect(lines(build(15, { date: "2026-11-03", supplier: "recSup", amount: 1000, paidFrom: "1150", reference: "GC1" }))).toEqual([
       ["1260", 1000_00, 0],
