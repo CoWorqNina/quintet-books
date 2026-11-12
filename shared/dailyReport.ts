@@ -21,6 +21,10 @@ export interface PaidOut {
   description: string;
   amount: number;
   accountCode?: string; // expense only
+  /** expense only: which store it's for (default: this report's store), or split between both. */
+  chargeTo?: "GGC" | "The Nest" | "Split" | null;
+  /** expense split only: GGC's part of the amount; the rest is The Nest's. */
+  ggcShare?: number | null;
   employeeId?: string; // advance only
   employeeName?: string;
   supplier?: string;
@@ -238,7 +242,9 @@ export function buildDailyReport(
         errors.push(`Paid-out ${n} (${label}): choose an expense or ingredient account.`);
       } else {
         if (!bookAllowed(account, "Store")) errors.push(`Paid-out ${n}: ${account.code} is not a Store account.`);
-        if (!profitCenterAllowed(account, pc)) errors.push(`Paid-out ${n}: ${account.code} ${account.name} can't be tagged ${pc}.`);
+        for (const s of storesOf(p.chargeTo ?? pc)) {
+          if (!profitCenterAllowed(account, s)) errors.push(`Paid-out ${n}: ${account.code} ${account.name} can't be tagged ${s}.`);
+        }
         if (needsQuantity(account)) {
           if (!(Number(p.quantity) > 0) || !p.unit?.trim() || !(Number(p.unitPrice) > 0)) {
             errors.push(`Paid-out ${n} (${label}): ingredients need quantity, unit and unit price.`);
@@ -249,6 +255,15 @@ export function buildDailyReport(
       }
       // A receipt photo is optional; without one the expense is flagged "no receipt" for the approver.
       const unsupported = !p.receipt;
+      // Which store(s) bear it: this report's store, the other one, or split (GGC's share, the rest The Nest).
+      const chargeTo = p.chargeTo ?? pc;
+      let shares: [DailyProfitCenter, number][] = [[chargeTo === "Split" ? pc : chargeTo, amount]];
+      if (chargeTo === "Split") {
+        const ggc = c(p.ggcShare);
+        if (!(ggc > 0 && ggc < amount)) errors.push(`Paid-out ${n} (${label}): enter GGC's share, more than zero and less than the amount.`);
+        else shares = [["GGC", ggc], ["The Nest", amount - ggc]];
+      }
+      const qty = account && needsQuantity(account);
       entries.push(
         finishEntry({
           ...base,
@@ -258,14 +273,17 @@ export function buildDailyReport(
           unsupported,
           attachments: p.receipt ? [p.receipt] : [],
           lines: [
-            debit(p.accountCode ?? "", amount, "11.expense", {
-              ...tagged,
-              party_name: p.supplier?.trim() || null,
-              quantity: account && needsQuantity(account) ? Number(p.quantity) : null,
-              unit: account && needsQuantity(account) ? p.unit?.trim() : null,
-              unit_price: account && needsQuantity(account) ? Number(p.unitPrice) : null,
-              memo: label,
-            }),
+            ...shares.map(([store, part]) =>
+              debit(p.accountCode ?? "", part, "11.expense", {
+                profit_center: store,
+                party_name: p.supplier?.trim() || null,
+                // a split quantity is shared in the same proportion
+                quantity: qty ? Math.round(((Number(p.quantity) * part) / amount) * 1000) / 1000 : null,
+                unit: qty ? p.unit?.trim() : null,
+                unit_price: qty ? Number(p.unitPrice) : null,
+                memo: shares.length > 1 ? `${label} (${store} share)` : label,
+              }),
+            ),
             credit(cash.pettyCash, amount, "11.petty_cash"),
           ],
         }),
@@ -359,4 +377,9 @@ export function buildDailyReport(
     errors,
     warnings,
   };
+}
+
+/** The stores an expense is charged to. */
+function storesOf(chargeTo: DailyProfitCenter | "Split"): DailyProfitCenter[] {
+  return chargeTo === "Split" ? ["GGC", "The Nest"] : [chargeTo];
 }

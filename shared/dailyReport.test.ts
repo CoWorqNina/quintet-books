@@ -158,6 +158,28 @@ describe("buildDailyReport", () => {
     ]);
   });
 
+  it("a drawer expense can be for the other store, or split between both", () => {
+    const input = oct29();
+    input.paidOuts.push(
+      { kind: "expense", description: "Cups for banana pudding", amount: 460, accountCode: "6610", chargeTo: "The Nest" },
+      { kind: "expense", description: "Gelatin", amount: 390, accountCode: "6610", chargeTo: "Split", ggcShare: 150 },
+    );
+    const r = buildDailyReport(input, accounts);
+    expect(r.errors).toEqual([]);
+    const lines = (d: string) => r.entries.find((e) => e.description === d)!.lines.map((l) => [l.account_code, l.debitCents, l.creditCents, l.profit_center ?? null]);
+    expect(lines("Cups for banana pudding")).toEqual([
+      ["6610", 460_00, 0, "The Nest"],
+      ["1120", 0, 460_00, null],
+    ]);
+    expect(lines("Gelatin")).toEqual([
+      ["6610", 150_00, 0, "GGC"],
+      ["6610", 240_00, 0, "The Nest"],
+      ["1120", 0, 390_00, null],
+    ]);
+    input.paidOuts[input.paidOuts.length - 1].ggcShare = 390;
+    expect(buildDailyReport(input, accounts).errors.join()).toMatch(/GGC's share/);
+  });
+
   it("uses The Nest's own cash and GCash accounts", () => {
     const input = oct29();
     input.profitCenter = "The Nest";

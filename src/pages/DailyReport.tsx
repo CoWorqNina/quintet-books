@@ -12,7 +12,8 @@ import { api } from "../lib/api";
 import { todayManila, useAccounts, useEmployees, useLoad, useParties } from "../lib/data";
 
 type Num = string;
-interface PaidOutRow extends Omit<PaidOut, "amount" | "quantity" | "unitPrice"> {
+interface PaidOutRow extends Omit<PaidOut, "amount" | "quantity" | "unitPrice" | "ggcShare"> {
+  ggcShare?: Num;
   amount: Num;
   quantity: Num;
   unitPrice: Num;
@@ -70,7 +71,7 @@ export default function DailyReport({ user, editing }: { user: AppUser; editing?
     d.cashierId ? { id: String(d.cashierId), name: String(d.cashierName ?? "") } : null,
   );
   const [paidOuts, setPaidOuts] = useState<PaidOutRow[]>(
-    (e?.paid_outs ?? []).map((p) => ({ ...p, amount: str(p.amount), quantity: str(p.quantity), unitPrice: str(p.unitPrice) })),
+    (e?.paid_outs ?? []).map((p) => ({ ...p, amount: str(p.amount), quantity: str(p.quantity), unitPrice: str(p.unitPrice), ggcShare: str(p.ggcShare) })),
   );
   const [cashIns, setCashIns] = useState<{ amount: Num; sourceAccount: string; reference: string }[]>(
     (d.cashIns ?? []).map((c) => ({ ...c, amount: str(c.amount), reference: c.reference ?? "" })),
@@ -118,6 +119,7 @@ export default function DailyReport({ user, editing }: { user: AppUser; editing?
       amount: +p.amount || 0,
       quantity: p.quantity === "" ? null : +p.quantity,
       unitPrice: p.unitPrice === "" ? null : +p.unitPrice,
+      ggcShare: p.ggcShare ? +p.ggcShare : null,
     })),
     foodCharges: foodCharges.map((f) => ({ ...f, amount: +f.amount || 0, owner: owners.some((o) => o.id === f.employeeId) })),
     attachments: photos,
@@ -236,10 +238,32 @@ export default function DailyReport({ user, editing }: { user: AppUser; editing?
                     Expense line
                     <ExpenseAccountSelect
                       accounts={accountList}
-                      profitCenter={profitCenter}
+                      profitCenter={p.chargeTo === "Split" ? "both" : (p.chargeTo ?? profitCenter)}
                       value={p.accountCode}
                       onChange={(code) => setPaidOut(i, { accountCode: code })}
                     />
+                  </label>
+                )}
+                {p.kind === "expense" && (
+                  <label>
+                    For
+                    <select
+                      value={p.chargeTo ?? profitCenter}
+                      onChange={(ev) => setPaidOut(i, { chargeTo: ev.target.value as PaidOut["chargeTo"] })}
+                    >
+                      <option value="GGC">GGC</option>
+                      <option value="The Nest">The Nest</option>
+                      <option value="Split">Split between GGC and The Nest</option>
+                    </select>
+                  </label>
+                )}
+                {p.kind === "expense" && p.chargeTo === "Split" && (
+                  <label>
+                    GGC's share
+                    <MoneyInput value={p.ggcShare ?? ""} onChange={(v) => setPaidOut(i, { ggcShare: v })} />
+                    <small className="muted">
+                      The Nest's share: {formatPeso(Math.max(0, toCents(Number(p.amount) || 0) - toCents(Number(p.ggcShare) || 0)))}
+                    </small>
                   </label>
                 )}
                 {p.kind === "advance" && (
