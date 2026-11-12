@@ -127,6 +127,38 @@ async function accountUses(env: AppContext["Bindings"], code: string): Promise<s
 
 // Remove an account from the chart for good. Only for accounts never used anywhere; anything
 // with history is deactivated instead so old entries keep their account.
+// Rename an account (or a header). Posted entries refer to the account by code, so every report
+// shows the new name; the change goes to the Judgment Log.
+setup.post("/accounts/:code/rename", async (c) => {
+  const user = c.get("user");
+  if (!isOwner(user)) forbidden("Only an Owner renames accounts.");
+  const { name: raw, reason } = await c.req.json<{ name?: string; reason?: string }>();
+  const name = raw?.trim() ?? "";
+  if (!name) badRequest("Enter the new name.");
+  if (!reason?.trim()) badRequest("Give a reason (it goes to the Judgment Log).");
+  const accounts = await getAccounts(c.env);
+  const account = accounts.find((a: Account) => a.code === c.req.param("code"));
+  if (!account) badRequest("Unknown account.");
+  if (name === account.name) badRequest("That's already its name.");
+  const clash = accounts.find((a) => a.code !== account.code && a.name.toLowerCase() === name.toLowerCase());
+  if (clash) badRequest(`${clash.code} is already named ${clash.name}.`);
+  // The statement line follows the name when it was the account's own line (not a shared group).
+  const ownLine = account.statementLine === account.name;
+  await updateRecord<AccountFields>(c.env, TABLES.accounts, account.id, { Name: name, ...(ownLine ? { "Statement Line": name } : {}) });
+  // Accounts grouped under a renamed header show under its new name too.
+  for (const child of accounts.filter((a) => a.parentCode === account.code && a.statementLine === account.name)) {
+    await updateRecord<AccountFields>(c.env, TABLES.accounts, child.id, { "Statement Line": name });
+  }
+  clearCache("accounts:");
+  await logJudgment(c.env, {
+    category: "Policy decision",
+    description: `Renamed account ${account.code} from "${account.name}" to "${name}": ${reason.trim()}`,
+    decidedBy: user.fullName,
+    recordedBy: user.fullName,
+  });
+  return c.json({ ok: true });
+});
+
 setup.post("/accounts/:code/remove", async (c) => {
   const user = c.get("user");
   if (!isOwner(user)) forbidden("Only an Owner removes accounts.");

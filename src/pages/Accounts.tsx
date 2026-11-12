@@ -36,6 +36,19 @@ export default function Accounts({ user }: { user: AppUser }) {
   }, [accounts, filter, showInactive]);
   const hasChildren = (a: Account) => !!accounts?.some((x) => x.parentCode === a.code);
 
+  async function rename(a: Account) {
+    const name = prompt(`New name for ${a.code} ${a.name}:`, a.name)?.trim();
+    if (!name || name === a.name) return;
+    const reason = prompt(`Rename ${a.code} to "${name}"?\n\nReason (goes to the Judgment Log):`);
+    if (!reason?.trim()) return;
+    try {
+      await api(`/accounts/${a.code}/rename`, { method: "POST", body: JSON.stringify({ name, reason }) });
+      setVersion(version + 1);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Could not rename");
+    }
+  }
+
   async function remove(a: Account) {
     const reason = prompt(
       `Remove ${a.code} ${a.name} from the chart for good?\n\nThis only works if it has never been used. Accounts with history are deactivated instead.\n\nReason (goes to the Judgment Log):`,
@@ -98,6 +111,9 @@ export default function Accounts({ user }: { user: AppUser }) {
                   {isOwner && (
                     <td>
                       <span className="row-links">
+                        <button className="link" onClick={() => rename(a)}>
+                          Rename
+                        </button>
                         {!a.isHeader && (
                           <button className="link" onClick={() => toggle(a)}>
                             {a.active ? "Deactivate" : "Reactivate"}
