@@ -52,7 +52,8 @@ export default function Parties({ user }: { user: AppUser }) {
     }
   }
 
-  const pending = (data ?? []).filter((p) => p.approvalStatus === "Pending");
+  // A supplier with no status yet (e.g. added straight in Airtable) also waits for approval.
+  const pending = (data ?? []).filter((p) => p.type === "Supplier" && p.active && (p.approvalStatus ?? "Pending") === "Pending");
   const [editing, setEditing] = useState<string | null>(null);
   // Owner records only by Owners; the rest by Owners and the Accountant. Deleting: Owners only.
   const canEdit = type === "Owner" ? owner : manager;
